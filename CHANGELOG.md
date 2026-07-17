@@ -1,2 +1,1 @@
-- fix disconnect when restock results in empty stacks (#371)
-- Add Buttons to switch to terminals directly (#375)
+- fix S2C packets being registered as bidirectional
