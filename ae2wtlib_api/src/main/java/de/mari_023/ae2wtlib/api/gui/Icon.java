@@ -1,14 +1,15 @@
 package de.mari_023.ae2wtlib.api.gui;
 
-import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 
 import appeng.client.gui.style.Blitter;
 
+import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
+
 /**
- * Edit in {@code assets/ae2/textures/wtlib/guis/icons.png}.
+ * Edit in {@code assets/ae2wtlib_api/textures/guis/icons.png}.
  */
 public record Icon(int x, int y, int width, int height, Texture texture) {
 
