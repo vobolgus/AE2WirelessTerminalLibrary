@@ -1,18 +1,18 @@
 package de.mari_023.ae2wtlib.api.gui;
 
+import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
 
 import appeng.client.gui.style.Blitter;
-import appeng.core.AppEng;
 
 /**
  * Edit in {@code assets/ae2/textures/wtlib/guis/icons.png}.
  */
 public record Icon(int x, int y, int width, int height, Texture texture) {
 
-    public static final Texture TEXTURE = new Texture(AppEng.makeId("textures/wtlib/guis/icons.png"), 128, 128);
+    public static final Texture TEXTURE = new Texture(AE2wtlibAPI.apiId("textures/guis/icons.png"), 128, 128);
     public static final Texture AE2TEXTURE = new Texture(appeng.util.Icon.TEXTURE, appeng.util.Icon.TEXTURE_WIDTH,
             appeng.util.Icon.TEXTURE_HEIGHT);
 

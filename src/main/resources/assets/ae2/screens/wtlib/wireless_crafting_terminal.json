@@ -57,7 +57,7 @@
   },
   "terminalStyle": {
     "bottom": {
-      "texture": "wtlib/guis/crafting.png",
+      "texture": "ae2wtlib:textures/guis/crafting.png",
       "srcRect": [0, 0, 195, 184]
     }
   },

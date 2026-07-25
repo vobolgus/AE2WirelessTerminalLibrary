@@ -29,6 +29,9 @@ public class AE2wtlibAPI {
     public static Identifier id(String name) {
         return Identifier.fromNamespaceAndPath(MOD_NAME, name);
     }
+    public static Identifier apiId(String name) {
+        return Identifier.fromNamespaceAndPath(API_MOD_NAME, name);
+    }
 
     public static boolean isModPresent(String mod) {
         return ModList.get().isLoaded(mod);

@@ -2,7 +2,7 @@
   "$schema": "schema.json",
   "includes": ["../common/common.json", "../common/player_inventory.json"],
   "background": {
-    "texture": "wtlib/guis/magnet.png",
+    "texture": "ae2wtlib:textures/guis/magnet.png",
     "srcRect": [0, 0, 176, 256]
   },
   "slots": {

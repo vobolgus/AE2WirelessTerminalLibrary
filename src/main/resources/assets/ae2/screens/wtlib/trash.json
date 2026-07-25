@@ -5,7 +5,7 @@
     "../common/player_inventory.json"
   ],
   "background": {
-    "texture": "wtlib/guis/trash.png",
+    "texture": "ae2wtlib:textures/guis/trash.png",
     "srcRect": [0, 0, 176, 195]
   },
   "slots": {
