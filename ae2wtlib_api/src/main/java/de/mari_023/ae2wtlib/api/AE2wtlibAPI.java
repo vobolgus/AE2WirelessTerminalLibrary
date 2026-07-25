@@ -4,7 +4,6 @@ import java.util.function.Supplier;
 
 import com.mojang.datafixers.util.Unit;
 
-import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import net.minecraft.core.component.DataComponentPatch;
@@ -19,7 +18,6 @@ import net.neoforged.fml.ModList;
 import appeng.api.upgrades.IUpgradeInventory;
 import appeng.menu.locator.ItemMenuHostLocator;
 
-import de.mari_023.ae2wtlib.api.registration.WTDefinition;
 import de.mari_023.ae2wtlib.api.terminal.ItemWUT;
 
 public class AE2wtlibAPI {
@@ -56,16 +54,6 @@ public class AE2wtlibAPI {
 
     public static Item getWUT() {
         return AE2wtlibAPIImpl.instance().getWUT();
-    }
-
-    @ApiStatus.Internal
-    public static void selectTerminal(WTDefinition terminal) {
-        AE2wtlibAPIImpl.instance().selectTerminal(terminal);
-    }
-
-    @ApiStatus.Internal
-    public static boolean alwaysShowTerminalSelector() {
-        return AE2wtlibAPIImpl.instance().alwaysShowTerminalSelector();
     }
 
     /**

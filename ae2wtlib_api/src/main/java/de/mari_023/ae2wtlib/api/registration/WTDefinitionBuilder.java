@@ -29,7 +29,7 @@ public class WTDefinitionBuilder {
     private String hotkeyName;
     @Nullable
     private DataComponentType<Unit> componentType;
-    private String translationKey;
+    private final String translationKey;
     private int upgradeCount;
 
     WTDefinitionBuilder(AddTerminalEvent event, String terminalName,
@@ -80,19 +80,6 @@ public class WTDefinitionBuilder {
     @Contract("_ -> this")
     public WTDefinitionBuilder hotkeyName(String hotkeyName) {
         this.hotkeyName = hotkeyName;
-        return this;
-    }
-
-    /**
-     * Since 19.2.3, the translationKey is set automatically from the item.
-     *
-     * @param translationKey The translationKey for the terminal.
-     * @return this
-     */
-    @Deprecated(forRemoval = true, since = "19.2.3")
-    @Contract("_ -> this")
-    public WTDefinitionBuilder translationKey(String translationKey) {
-        this.translationKey = translationKey;
         return this;
     }
 
