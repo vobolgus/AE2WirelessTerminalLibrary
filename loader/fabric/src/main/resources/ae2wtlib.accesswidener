@@ -1,0 +1,24 @@
+accessWidener	v2	official
+
+# Translated 1:1 from the two NeoForge access transformers - keep all three files in sync:
+#   src/main/resources/META-INF/accesstransformer.cfg
+#   ae2wtlib_api/src/main/resources/META-INF/accesstransformer.cfg
+# (both currently carry the SAME three entries)
+#
+# AT -> AW rules (playbook Part 8):
+#   public   -> accessible      public-f/protected-f -> mutable
+#   check first whether vanilla already widened the member since the AT was written.
+#
+# AT: public-f net.minecraft.world.inventory.Slot x
+# AT: public-f net.minecraft.world.inventory.Slot y
+#   javap on minecraft-merged-deobf-26.1.2: `public final int x/y` - already public, so ONLY the
+#   final flag has to go. Used by ScrollingUpgradesPanel (ae2wtlib_api) which repositions slots.
+mutable	field	net/minecraft/world/inventory/Slot	x	I
+mutable	field	net/minecraft/world/inventory/Slot	y	I
+
+# AT: public net.minecraft.world.entity.item.ItemEntity target
+#   javap: `private java.util.UUID target;` with a public setTarget() but NO getter.
+#   Read once, in the ItemEntityPickupEvent.Pre handler (AE2wtlibForge#handle).
+#   NOTE (playbook Part 2): AW FIELD-widening has proved flaky in this workspace - if this entry
+#   does not take effect, replace it with an @Accessor mixin on ItemEntity in the Fabric overlay.
+accessible	field	net/minecraft/world/entity/item/ItemEntity	target	Ljava/util/UUID;

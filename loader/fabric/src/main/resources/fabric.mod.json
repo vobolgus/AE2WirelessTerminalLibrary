@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "ae2wtlib",
+  "version": "${version}",
+  "name": "AE2 Wireless Terminal Library",
+  "description": "Adds wireless crafting/pattern-encoding/pattern-access terminals and the universal terminal to Applied Energistics 2.",
+  "authors": [
+    "Mari_023"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/applied-energistics-2-wireless-terminals",
+    "sources": "https://github.com/Mari023/AE2WirelessTerminalLibrary",
+    "issues": "https://github.com/Mari023/AE2WirelessTerminalLibrary/issues"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "de.mari_023.ae2wtlib.fabric.AE2wtlibFabric"
+    ],
+    "client": [
+      "de.mari_023.ae2wtlib.fabric.client.AE2wtlibFabricClient"
+    ]
+  },
+  "accessWidener": "ae2wtlib.accesswidener",
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": "*",
+    "minecraft": "~${minecraft_version}",
+    "ae2": "*"
+  }
+}

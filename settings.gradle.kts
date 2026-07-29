@@ -1,9 +1,20 @@
 rootProject.name = "ae2wtlib"
 pluginManagement {
+    // The Fabric loom plugin marker lives on maven.fabricmc.net, not on the Gradle Plugin Portal.
+    // Declaring `repositories` here replaces the implicit default, so the portal has to be re-added.
+    repositories {
+        maven {
+            name = "FabricMC"
+            url = uri("https://maven.fabricmc.net/")
+        }
+        gradlePluginPortal()
+    }
     plugins {
         id("net.neoforged.moddev") version "2.0.141"
         id("net.neoforged.moddev.repositories") version "2.0.141"
         id("com.diffplug.spotless") version "7.0.0.BETA2"
+        // https://fabricmc.net/develop/ - loom 1.17.x requires Gradle >= 9.5 (wrapper bumped to 9.5.1)
+        id("net.fabricmc.fabric-loom") version "1.17.8"
     }
 }
 plugins {
@@ -49,3 +60,11 @@ dependencyResolutionManagement {
 }
 
 include("ae2wtlib_api")
+
+// Fabric loader project (the port). loom resolves its dependencies at CONFIGURATION time, so CI jobs
+// that only build NeoForge can drop the whole subproject with -Pae2wtlib.skipFabric=true.
+// Mirrors the `-Pae2.skipFabric` switch in the Applied-Energistics-2 fork.
+val skipFabric = providers.gradleProperty("ae2wtlib.skipFabric").getOrElse("false") == "true"
+if (!skipFabric) {
+    include("loader:fabric")
+}
