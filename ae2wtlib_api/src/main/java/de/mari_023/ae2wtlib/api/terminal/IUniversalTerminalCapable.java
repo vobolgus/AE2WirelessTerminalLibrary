@@ -3,7 +3,6 @@ package de.mari_023.ae2wtlib.api.terminal;
 import java.util.ArrayList;
 
 import net.minecraft.client.input.KeyEvent;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import appeng.client.Hotkeys;
 import appeng.client.gui.WidgetContainer;
@@ -11,6 +10,7 @@ import appeng.core.network.serverbound.HotkeyPacket;
 import appeng.menu.AEBaseMenu;
 import appeng.menu.SlotSemantics;
 
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.api.gui.AE2wtlibSlotSemantics;
 import de.mari_023.ae2wtlib.api.gui.ScrollingUpgradesPanel;
 import de.mari_023.ae2wtlib.api.gui.TerminalSelectionPanel;
@@ -31,7 +31,7 @@ public interface IUniversalTerminalCapable {
             if (hotkey == null)
                 continue;
             if (hotkey.mapping().matches(event)) {
-                ClientPacketDistributor.sendToServer(new HotkeyPacket(hotkey));
+                Ae2wtlibNet.get().sendToServer(new HotkeyPacket(hotkey));
                 return true;
             }
         }

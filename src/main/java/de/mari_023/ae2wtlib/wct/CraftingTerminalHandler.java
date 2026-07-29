@@ -13,10 +13,10 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.menu.locator.ItemMenuHostLocator;
 
-import de.mari_023.ae2wtlib.AE2wtlibAdditionalComponents;
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
 import de.mari_023.ae2wtlib.api.terminal.WTMenuHost;
 import de.mari_023.ae2wtlib.api.terminal.WUTHandler;
+import de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments;
 import de.mari_023.ae2wtlib.wct.magnet_card.MagnetHost;
 import de.mari_023.ae2wtlib.wut.WTDefinitions;
 
@@ -37,7 +37,7 @@ public class CraftingTerminalHandler {
     }
 
     public static CraftingTerminalHandler getCraftingTerminalHandler(Player player) {
-        return player.getData(AE2wtlibAdditionalComponents.CT_HANDLER);
+        return Ae2wtlibAttachments.get().getCraftingTerminalHandler(player);
     }
 
     protected void invalidateCache() {

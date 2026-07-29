@@ -9,6 +9,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 
 import appeng.menu.slot.AppEngSlot;
 
+import de.mari_023.ae2wtlib.Ae2wtlibItemHooks;
 import de.mari_023.ae2wtlib.api.gui.Icon;
 
 public class ArmorSlot extends AppEngSlot {
@@ -16,14 +17,14 @@ public class ArmorSlot extends AppEngSlot {
     private final Armor armor;
 
     public ArmorSlot(Inventory playerInventory, Armor armor) {
-        super(new WrappedPlayerInventory(playerInventory), armor.value.invSlot);
+        super(WrappedPlayerInventory.of(playerInventory), armor.value.invSlot);
         this.playerInventory = playerInventory;
         this.armor = armor;
     }
 
     public boolean mayPlace(ItemStack stack) {
         return armor == Armor.OFFHAND
-                || stack.canEquip(armor.value.equipmentSlot(), playerInventory.player);
+                || Ae2wtlibItemHooks.get().canEquip(stack, armor.value.equipmentSlot(), playerInventory.player);
     }
 
     @Override

@@ -2,15 +2,10 @@ package de.mari_023.ae2wtlib;
 
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.neoforged.neoforge.attachment.AttachmentType;
-import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import appeng.api.features.GridLinkables;
 import appeng.api.features.HotkeyAction;
 import appeng.api.upgrades.Upgrades;
-import appeng.client.InitScreens;
 import appeng.core.definitions.AEItems;
 import appeng.hotkeys.HotkeyActions;
 import appeng.items.tools.powered.WirelessTerminalItem;
@@ -25,20 +20,16 @@ import de.mari_023.ae2wtlib.hotkeys.RestockHotkeyAction;
 import de.mari_023.ae2wtlib.hotkeys.StowHotkeyAction;
 import de.mari_023.ae2wtlib.wat.WATMenu;
 import de.mari_023.ae2wtlib.wat.WATMenuHost;
-import de.mari_023.ae2wtlib.wat.WATScreen;
 import de.mari_023.ae2wtlib.wct.*;
 import de.mari_023.ae2wtlib.wct.magnet_card.MagnetMenu;
-import de.mari_023.ae2wtlib.wct.magnet_card.MagnetScreen;
 import de.mari_023.ae2wtlib.wet.WETMenu;
 import de.mari_023.ae2wtlib.wet.WETMenuHost;
-import de.mari_023.ae2wtlib.wet.WETScreen;
 import de.mari_023.ae2wtlib.wut.recipe.Combine;
 import de.mari_023.ae2wtlib.wut.recipe.Upgrade;
 
 public class AE2wtlib {
-    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES = DeferredRegister
-            .create(NeoForgeRegistries.ATTACHMENT_TYPES, AE2wtlibAPI.MOD_NAME);
-
+    // was: DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES - the only entry (ct_handler) moved behind the
+    // de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments seam, which each loader implements natively.
     public static void registerTerminals() {
         AddTerminalEvent.register((event -> {
             event.builder("crafting", WCTMenuHost::new, WCTMenu.TYPE,
@@ -79,7 +70,7 @@ public class AE2wtlib {
                 Combine.serializer);
     }
 
-    static void addToCreativeTab() {
+    public static void addToCreativeTab() {
         if (AE2wtlibCreativeTab.registrationHappened())
             return;
         for (var t : WTDefinition.wirelessTerminals())
@@ -89,7 +80,7 @@ public class AE2wtlib {
         AE2wtlibCreativeTab.add(AE2wtlibItems.MAGNET_CARD.asItem());
     }
 
-    static void registerMenus() {
+    public static void registerMenus() {
         Registry.register(BuiltInRegistries.MENU, WCTMenu.ID, WCTMenu.TYPE);
         Registry.register(BuiltInRegistries.MENU, WETMenu.ID, WETMenu.TYPE);
         Registry.register(BuiltInRegistries.MENU, WATMenu.ID, WATMenu.TYPE);
@@ -97,13 +88,8 @@ public class AE2wtlib {
         Registry.register(BuiltInRegistries.MENU, TrashMenu.ID, TrashMenu.TYPE);
     }
 
-    public static void registerScreens(RegisterMenuScreensEvent event) {
-        InitScreens.register(event, WCTMenu.TYPE, WCTScreen::new, "/screens/wtlib/wireless_crafting_terminal.json");
-        InitScreens.register(event, WETMenu.TYPE, WETScreen::new,
-                "/screens/wtlib/wireless_pattern_encoding_terminal.json");
-        InitScreens.register(event, WATMenu.TYPE, WATScreen::new,
-                "/screens/wtlib/wireless_pattern_access_terminal.json");
-        InitScreens.register(event, MagnetMenu.TYPE, MagnetScreen::new, "/screens/wtlib/magnet.json");
-        InitScreens.register(event, TrashMenu.TYPE, TrashScreen::new, "/screens/wtlib/trash.json");
-    }
+    // registerScreens(RegisterMenuScreensEvent) moved to the NeoForge overlay
+    // (de.mari_023.ae2wtlib.neoforge.NeoForgeScreens): our AE2 fork replaced InitScreens.register's first
+    // parameter with the loader-neutral InitScreens.MenuScreenRegistrar (PORTING_NOTES section 3.2), so the two
+    // loaders cannot share this call. W5 adds the Fabric twin.
 }

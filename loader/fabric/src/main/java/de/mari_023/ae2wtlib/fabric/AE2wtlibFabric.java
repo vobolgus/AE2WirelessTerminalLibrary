@@ -4,50 +4,120 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
+
+import appeng.core.definitions.AEItems;
+
+import de.mari_023.ae2wtlib.AE2wtlib;
+import de.mari_023.ae2wtlib.AE2wtlibAPIImplementation;
+import de.mari_023.ae2wtlib.AE2wtlibAdditionalComponents;
+import de.mari_023.ae2wtlib.AE2wtlibConfig;
+import de.mari_023.ae2wtlib.AE2wtlibCreativeTab;
+import de.mari_023.ae2wtlib.AE2wtlibItems;
+import de.mari_023.ae2wtlib.Ae2wtlibItemHooks;
+import de.mari_023.ae2wtlib.api.AE2wtlibAPIRegistration;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
+import de.mari_023.ae2wtlib.api.Ae2wtlibPlatform;
+import de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments;
+import de.mari_023.ae2wtlib.fabric.config.FabricConfigStore;
+import de.mari_023.ae2wtlib.fabric.network.FabricNet;
+import de.mari_023.ae2wtlib.fabric.network.FabricNetworkInit;
+import de.mari_023.ae2wtlib.registration.Ae2wtlibItemFactory;
+import de.mari_023.ae2wtlib.wct.ItemWCT;
+import de.mari_023.ae2wtlib.wct.WrappedPlayerInventory;
 
 /**
  * Fabric common entrypoint - the twin of {@code de.mari_023.ae2wtlib.AE2wtlibForge}.
+ *
+ * <h2>⚠ Where the real initialization happens</h2>
+ *
+ * <strong>Not here.</strong> {@link #init()} is driven from the TAIL of AE2's own {@code AppEngFabric.init}, via
+ * {@code de.mari_023.ae2wtlib.fabric.mixin.AppEngFabricMixin} - Fabric Loader does not order entrypoints by mod
+ * dependency, and AE2 registers its content from a different entrypoint per dist. See that mixin's javadoc for the full
+ * reasoning and the three concrete failures it prevents (it is the W2 gate finding).
  * <p>
- * W1 (skeleton) only proves the module builds; every call below is still a stub. The list is kept in the exact order of
- * {@code AE2wtlibForge}'s constructor + its {@code @SubscribeEvent} handlers so the W2/W3 waves can tick it off top to
- * bottom (playbook Part 8: "audit every {@code set*(} seam against {@code init()} - an unwired client packet sender
- * crashed only in prod").
+ * This class stays registered as the {@code main} entrypoint so the mod has one, and so that a future AE2 addon
+ * entrypoint can be switched to without touching anything else.
  */
 public class AE2wtlibFabric implements ModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("ae2wtlib");
 
+    private static boolean initialized;
+
     @Override
     public void onInitialize() {
-        // W1-STUB: new AE2wtlibAPIImplementation();
-        // W1-STUB: modContainer.registerConfig(ModConfig.Type.COMMON, AE2wtlibConfig.SPEC, "ae2wtlib.toml")
-        // -> night-config store behind an AE2wtlibConfigStore seam (crib:
-        // appeng.core.config.ConfigStore + appeng.fabric.config.FabricConfigStore).
-        // W1-STUB: AE2wtlibItems.DR.register(modEventBus)
-        // -> plain Registry.register; golden rule #7: Properties.setId BEFORE construction,
-        // then item.registerBlocks(Item.BY_BLOCK, item) / bindComponents.
-        // W1-STUB: RegisterEvent(Registries.MENU) -> AE2wtlib.registerMenus()
-        // W1-STUB: RegisterEvent(Registries.ITEM) -> AE2wtlib.registerTerminals(), registerRecipes(),
-        // registerHotkeyActions(), AE2wtlibCreativeTab.init()
-        // W1-STUB: FMLCommonSetupEvent -> AE2wtlib.registerGridLinkables(), registerUpgrades()
-        // W1-STUB: BuildCreativeModeTabContentsEvent -> AE2wtlib.addToCreativeTab()
-        // (fabric-api: ItemGroupEvents.modifyEntriesEvent)
-        // W1-STUB: RegisterPayloadHandlersEvent -> PayloadTypeRegistry.playC2S/playS2C +
-        // ServerPlayNetworking.registerGlobalReceiver for the 6 AE2wtlib packets.
-        // W1-STUB: RegisterCapabilitiesEvent (Capabilities.Energy.ITEM for the 3 powered terminals)
-        // -> EnergyStorage.ITEM.registerForItems(...) with
-        // appeng.fabric.transfer.PoweredItemEnergyStorage (crib: AE2's InitApiLookup:255).
-        // W1-STUB: AE2wtlibAdditionalComponents.init()
-        // W1-STUB: AE2wtlib.ATTACHMENT_TYPES.register(modEventBus)
-        // -> fabric-api AttachmentRegistry (or a weak map, cf. AE2's FabricPlayerCtrlAttachment).
-        //
-        // Event handlers still to be re-homed (NeoForge event -> Fabric mechanism):
-        // W1-STUB: LivingEntityUseItemEvent.Finish -> mixin on LivingEntity#completeUsingItem
-        // W1-STUB: PlayerInteractEvent.RightClickBlock -> UseBlockCallback / mixin (LOWEST priority!)
-        // W1-STUB: PlayerInteractEvent.EntityInteractSpecific -> UseEntityCallback / mixin
-        // W1-STUB: ItemEntityPickupEvent.Pre -> mixin on ItemEntity#playerTouch
-        // W1-STUB: ArrowNockEvent / ArrowLooseEvent -> mixins on BowItem/CrossbowItem
-        // W1-STUB: ClientTickEvent.Post -> client entrypoint (see AE2wtlibFabricClient)
-        // W1-STUB: InputEvent.MouseScrollingEvent -> client entrypoint (see AE2wtlibFabricClient)
-        LOG.info("AE2wtlib Fabric platform layer loaded (W1 skeleton - no features wired yet).");
+        // Intentionally empty - see the class javadoc. AppEngFabricMixin calls init().
+    }
+
+    /**
+     * The loader-neutral half of {@code AE2wtlibForge}'s constructor, in the same order. Called exactly once, from
+     * {@code AppEngFabricMixin}; the guard makes a future switch to a real AE2 addon entrypoint a one-line change.
+     */
+    public static synchronized void init() {
+        if (initialized)
+            return;
+        initialized = true;
+
+        // 1. Inject the loader-specific seam implementations. This has to happen before anything class-loads
+        // AE2wtlibItems (its static initializer builds every ItemDefinition through the factory).
+        Ae2wtlibPlatform.init(modId -> FabricLoader.getInstance().isModLoaded(modId));
+        Ae2wtlibNet.init(new FabricNet());
+        Ae2wtlibAttachments.init(new FabricAttachments());
+        Ae2wtlibItemFactory.init(new FabricItemFactory());
+        Ae2wtlibItemHooks.init(new FabricItemHooks());
+        WrappedPlayerInventory.factory = FabricWrappedPlayerInventory::new;
+
+        new AE2wtlibAPIImplementation();
+
+        // 2. Config (NeoForge: modContainer.registerConfig(COMMON, ...)).
+        FabricConfigStore.create(AE2wtlibConfig.FILE_NAME, AE2wtlibConfig::register);
+
+        // 3. Content. NeoForge drives this from RegisterEvent(ITEM)/RegisterEvent(MENU); on Fabric the registries are
+        // already open, so the calls happen inline - in the order the events would have fired.
+        AE2wtlibItems.init();
+        AE2wtlibAdditionalComponents.init();
+        AE2wtlib.registerMenus();
+        AE2wtlib.registerTerminals();
+        AE2wtlibAPIRegistration.register();
+        AE2wtlib.registerRecipes();
+        AE2wtlib.registerHotkeyActions();
+        AE2wtlibCreativeTab.init();
+
+        // 4. NeoForge: FMLCommonSetupEvent.
+        AE2wtlib.registerGridLinkables();
+        AE2wtlib.registerUpgrades();
+
+        // NeoForge: BuildCreativeModeTabContentsEvent. We already run at the end of ALL registration, so the tab
+        // contents can be built directly (AE2wtlibCreativeTab guards against being filled twice anyway).
+        AE2wtlib.addToCreativeTab();
+
+        // 5. Networking. Payload TYPES must be registered on both sides; the client receivers live in the client
+        // entrypoint because ClientPlayNetworking is client-only.
+        FabricNetworkInit.registerPayloadTypes();
+        FabricNetworkInit.registerServerReceivers();
+
+        verifyWirelessCraftingTerminalSwap();
+
+        // W2-STUB (W3): the restock event surface - LivingEntityUseItemEvent.Finish,
+        // PlayerInteractEvent.RightClickBlock
+        // / EntityInteractSpecific, ItemEntityPickupEvent.Pre, ArrowNockEvent, ArrowLooseEvent.
+        // W2-STUB (W4): RegisterCapabilitiesEvent -> EnergyStorage.ITEM.registerForItems(...) with AE2's
+        // appeng.fabric.transfer.PoweredItemEnergyStorage for the 3 powered terminals.
+        LOG.info("AE2wtlib Fabric platform layer initialized (W2: foundation seams).");
+    }
+
+    /**
+     * Risk R6: this mod does not register the wireless crafting terminal itself - {@code AEItemsMixin} intercepts AE2's
+     * own item factory and swaps in {@link ItemWCT}. Our AE2 fork changed <em>how</em> items are registered
+     * ({@code AEItemEntry} instead of {@code DeferredItem}), so the swap has to be verified rather than assumed. This
+     * runs as early as the item is resolvable and fails loudly rather than leaving a subtly wrong terminal in the game.
+     */
+    private static void verifyWirelessCraftingTerminalSwap() {
+        var item = AEItems.WIRELESS_CRAFTING_TERMINAL.asItem();
+        if (!(item instanceof ItemWCT))
+            throw new IllegalStateException("AEItemsMixin did not take: ae2:wireless_crafting_terminal is a "
+                    + item.getClass().getName() + ", expected " + ItemWCT.class.getName()
+                    + ". Wireless crafting terminals will not work.");
+        LOG.debug("AEItemsMixin verified: ae2:wireless_crafting_terminal is an ItemWCT");
     }
 }

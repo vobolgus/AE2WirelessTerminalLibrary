@@ -8,12 +8,12 @@ import org.jetbrains.annotations.Nullable;
 
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.world.inventory.MenuType;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
 
 import appeng.hotkeys.HotkeyActions;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
+import de.mari_023.ae2wtlib.api.EnumStreamCodec;
 import de.mari_023.ae2wtlib.api.TextConstants;
 import de.mari_023.ae2wtlib.api.gui.Icon;
 import de.mari_023.ae2wtlib.api.terminal.Ae2wtlibLocatingService;
@@ -53,7 +53,7 @@ public class WTDefinitionBuilder {
         if (componentType == null) {
             componentType = AE2wtlibComponents.register("has_" + name + "_terminal", builder -> builder
                     .persistent(Codec.EMPTY.codec())
-                    .networkSynchronized(NeoForgeStreamCodecs.enumCodec(Unit.class)));
+                    .networkSynchronized(EnumStreamCodec.of(Unit.class)));
         }
 
         if (WTDefinition.exists(name))

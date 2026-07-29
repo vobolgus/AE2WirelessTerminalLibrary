@@ -7,7 +7,6 @@ import org.jetbrains.annotations.Nullable;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
 
 import appeng.api.networking.IGridNode;
 import appeng.menu.MenuOpener;
@@ -17,6 +16,7 @@ import appeng.menu.implementations.MenuTypeBuilder;
 import appeng.menu.me.items.CraftingTermMenu;
 import appeng.menu.slot.RestrictedInputSlot;
 
+import de.mari_023.ae2wtlib.api.EnumStreamCodec;
 import de.mari_023.ae2wtlib.api.gui.AE2wtlibSlotSemantics;
 import de.mari_023.ae2wtlib.api.terminal.ItemWUT;
 import de.mari_023.ae2wtlib.api.terminal.WTMenuHost;
@@ -51,7 +51,7 @@ public class WCTMenu extends CraftingTermMenu {
         addSlot(new RestrictedInputSlot(RestrictedInputSlot.PlacableItemType.QE_SINGULARITY,
                 wctMenuHost.getSubInventory(WTMenuHost.INV_SINGULARITY), 0), AE2wtlibSlotSemantics.SINGULARITY);
 
-        registerClientAction(MAGNET_MODE, NeoForgeStreamCodecs.enumCodec(MagnetMode.class), this::setMagnetMode);
+        registerClientAction(MAGNET_MODE, EnumStreamCodec.of(MagnetMode.class), this::setMagnetMode);
         registerClientAction(MAGNET_MENU, this::openMagnetMenu);
         registerClientAction(TRASH_MENU, this::openTrashMenu);
     }

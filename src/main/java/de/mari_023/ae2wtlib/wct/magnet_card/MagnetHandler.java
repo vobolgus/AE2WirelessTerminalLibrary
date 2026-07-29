@@ -13,7 +13,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import appeng.api.config.IncludeExclude;
 import appeng.api.stacks.AEItemKey;
@@ -23,7 +22,9 @@ import appeng.api.upgrades.IUpgradeableItem;
 import de.mari_023.ae2wtlib.AE2wtlibAdditionalComponents;
 import de.mari_023.ae2wtlib.AE2wtlibConfig;
 import de.mari_023.ae2wtlib.AE2wtlibItems;
+import de.mari_023.ae2wtlib.Ae2wtlibItemHooks;
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.networking.RestockAmountPacket;
 import de.mari_023.ae2wtlib.wct.CraftingTerminalHandler;
 
@@ -77,7 +78,7 @@ public class MagnetHandler {
         HashMap<Holder<Item>, Long> map = Maps.newHashMapWithExpectedSize(items.size());
         // noinspection deprecation
         items.forEach((item, count) -> map.put(item.builtInRegistryHolder(), count));
-        PacketDistributor.sendToPlayer(player, new RestockAmountPacket(map));
+        Ae2wtlibNet.get().sendToPlayer(player, new RestockAmountPacket(map));
     }
 
     private static void handleMagnet(Player player, ItemStack terminal) {
@@ -101,7 +102,7 @@ public class MagnetHandler {
             return;
 
         List<ItemEntity> entityItems = player.level().getEntitiesOfClass(ItemEntity.class,
-                player.getBoundingBox().inflate(AE2wtlibConfig.CONFIG.magnetCardRange()),
+                player.getBoundingBox().inflate(AE2wtlibConfig.config().magnetCardRange()),
                 EntitySelector.ENTITY_STILL_ALIVE);
 
         for (ItemEntity entityItemNearby : entityItems) {
@@ -110,7 +111,7 @@ public class MagnetHandler {
                 continue;
             if (magnetHost.getPickupFilter().matchesFilter(item,
                     magnetHost.getPickupMode())
-                    && !entityItemNearby.getPersistentData().contains("PreventRemoteMovement"))
+                    && !Ae2wtlibItemHooks.get().preventsRemoteMovement(entityItemNearby))
                 entityItemNearby.playerTouch(player);
         }
     }

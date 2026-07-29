@@ -23,6 +23,11 @@
       "de.mari_023.ae2wtlib.fabric.client.AE2wtlibFabricClient"
     ]
   },
+  "mixins": [
+    "ae2wtlib.fabric.mixins.json",
+    "ae2wtlib.fabric.platform.mixins.json",
+    "ae2wtlib_api.fabric.mixins.json"
+  ],
   "accessWidener": "ae2wtlib.accesswidener",
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",

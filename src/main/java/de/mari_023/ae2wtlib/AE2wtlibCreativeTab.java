@@ -22,7 +22,9 @@ public class AE2wtlibCreativeTab {
     private static final List<ItemStack> items = new ArrayList<>();
 
     public static void init() {
-        var tab = CreativeModeTab.builder()
+        // was NeoForge's no-arg CreativeModeTab.builder(); identical to this vanilla overload
+        // (same crib as AE2's MainCreativeTab on the fork).
+        var tab = CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)
                 .title(TextConstants.CREATIVE_TAB)
                 .icon(() -> {
                     var terminal = AE2wtlibItems.UNIVERSAL_TERMINAL;

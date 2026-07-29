@@ -8,7 +8,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import appeng.api.config.Actionable;
 import appeng.api.config.IncludeExclude;
@@ -17,6 +16,7 @@ import appeng.me.helpers.PlayerSource;
 import appeng.menu.me.crafting.CraftAmountMenu;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.networking.UpdateRestockPacket;
 import de.mari_023.ae2wtlib.wct.CraftingTerminalHandler;
 import de.mari_023.ae2wtlib.wct.magnet_card.MagnetHandler;
@@ -73,7 +73,7 @@ public class AE2wtlibEvents {
             if (ItemStack.isSameItemSameComponents(player.getInventory().getItem(Inventory.SLOT_OFFHAND), item))
                 slot = Inventory.SLOT_OFFHAND;
         }
-        PacketDistributor.sendToPlayer(player, new UpdateRestockPacket(slot, item));
+        Ae2wtlibNet.get().sendToPlayer(player, new UpdateRestockPacket(slot, item));
     }
 
     /**

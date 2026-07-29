@@ -7,7 +7,6 @@ import java.util.function.Consumer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.renderer.Rect2i;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import appeng.client.Hotkeys;
 import appeng.client.Point;
@@ -18,6 +17,7 @@ import appeng.client.gui.WidgetContainer;
 import appeng.client.gui.widgets.VerticalButtonBar;
 import appeng.core.network.serverbound.HotkeyPacket;
 
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.api.mixin.WidgetContainerAccessor;
 import de.mari_023.ae2wtlib.api.registration.WTDefinition;
 import de.mari_023.ae2wtlib.api.terminal.WTMenuHost;
@@ -45,7 +45,7 @@ public class TerminalSelectionPanel implements ICompositeWidget {
                 var hotkey = Hotkeys.getHotkeyMapping(terminal.hotkeyName());
                 if (hotkey == null)
                     return;
-                ClientPacketDistributor.sendToServer(new HotkeyPacket(hotkey));
+                Ae2wtlibNet.get().sendToServer(new HotkeyPacket(hotkey));
             }, terminal.icon()).withTooltip(terminal.formattedName());
             buttons.add(button);
         }

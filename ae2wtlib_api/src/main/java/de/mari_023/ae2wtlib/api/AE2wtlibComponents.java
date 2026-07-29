@@ -1,6 +1,6 @@
 package de.mari_023.ae2wtlib.api;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -13,7 +13,6 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
 
 import appeng.api.config.IncludeExclude;
 import appeng.menu.locator.ItemMenuHostLocator;
@@ -27,13 +26,21 @@ public class AE2wtlibComponents {
     private static final Consumer<DataComponentType.Builder<IncludeExclude>> INCLUDE_EXCLUDE_CODECS = builder -> builder
             .persistent(Codec.BOOL.xmap(AE2wtlibComponents::booleanToIncludeExclude,
                     AE2wtlibComponents::includeExcludeToBoolean))
-            .networkSynchronized(NeoForgeStreamCodecs.enumCodec(IncludeExclude.class));
+            .networkSynchronized(EnumStreamCodec.of(IncludeExclude.class));
 
     public static final StreamCodec<FriendlyByteBuf, ItemMenuHostLocator> MENU_HOST_LOCATOR_STREAM_CODEC = StreamCodec
             .ofMember((locator, buf) -> MenuLocators.writeToPacket(buf, locator),
                     (buf) -> (ItemMenuHostLocator) MenuLocators.readFromPacket(buf));
 
-    public static final Map<Identifier, DataComponentType<?>> DR = new HashMap<>();
+    /**
+     * Component types collected here are flushed into the game registry by the loader entrypoints.
+     * <p>
+     * <strong>LinkedHashMap, not HashMap</strong> (was HashMap upstream): data component types are a static registry
+     * and {@code ItemStack}'s stream codec addresses them by <em>raw registry id</em>, so registration order is part of
+     * the network contract (playbook Part 10). Insertion order makes that order the source order, i.e. deterministic
+     * and reviewable, instead of an artefact of Identifier hash distribution.
+     */
+    public static final Map<Identifier, DataComponentType<?>> DR = new LinkedHashMap<>();
 
     public static final DataComponentType<WTDefinition> CURRENT_TERMINAL = register("current_terminal",
             builder -> builder.persistent(WTDefinition.CODEC).networkSynchronized(WTDefinition.STREAM_CODEC));

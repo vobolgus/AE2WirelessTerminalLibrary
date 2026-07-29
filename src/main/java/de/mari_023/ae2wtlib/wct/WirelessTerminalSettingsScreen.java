@@ -1,7 +1,6 @@
 package de.mari_023.ae2wtlib.wct;
 
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import appeng.client.gui.AESubScreen;
 import appeng.client.gui.widgets.AECheckbox;
@@ -11,6 +10,7 @@ import appeng.util.Icon;
 
 import de.mari_023.ae2wtlib.AE2wtlibAdditionalComponents;
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.api.TextConstants;
 import de.mari_023.ae2wtlib.api.terminal.WTMenuHost;
 import de.mari_023.ae2wtlib.networking.TerminalSettingsPacket;
@@ -63,7 +63,7 @@ public class WirelessTerminalSettingsScreen extends AESubScreen<WCTMenu, WCTScre
         var locator = ((WTMenuHost) getMenu().getHost()).getLocator();
         if (locator == null)
             return;
-        ClientPacketDistributor.sendToServer(new TerminalSettingsPacket(locator,
+        Ae2wtlibNet.get().sendToServer(new TerminalSettingsPacket(locator,
                 pickBlock.isSelected(), restock.isSelected(), magnet.isSelected(), pickupToME.isSelected(),
                 craftIfMissing.isSelected()));
     }

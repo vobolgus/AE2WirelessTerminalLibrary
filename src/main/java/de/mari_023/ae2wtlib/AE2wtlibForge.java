@@ -10,6 +10,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -31,17 +32,39 @@ import net.neoforged.neoforge.registries.RegisterEvent;
 import appeng.items.tools.powered.powersink.PoweredItemCapabilities;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
+import de.mari_023.ae2wtlib.api.Ae2wtlibPlatform;
 import de.mari_023.ae2wtlib.api.terminal.ItemWT;
+import de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeAttachments;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeConfigStore;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeItemFactory;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeItemHooks;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeNet;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeScreens;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeWrappedPlayerInventory;
 import de.mari_023.ae2wtlib.networking.*;
+import de.mari_023.ae2wtlib.registration.Ae2wtlibItemFactory;
+import de.mari_023.ae2wtlib.wct.WrappedPlayerInventory;
 
 @Mod(AE2wtlibAPI.MOD_NAME)
 @EventBusSubscriber
 public class AE2wtlibForge {
     public AE2wtlibForge(IEventBus modEventBus, ModContainer modContainer) {
+        // Inject the loader-specific seam implementations BEFORE anything that could class-load AE2wtlibItems
+        // (its static initializer builds every ItemDefinition through the factory).
+        Ae2wtlibPlatform.init(ModList.get()::isLoaded);
+        Ae2wtlibNet.init(new NeoForgeNet());
+        Ae2wtlibAttachments.init(new NeoForgeAttachments());
+        Ae2wtlibItemFactory.init(new NeoForgeItemFactory());
+        Ae2wtlibItemHooks.init(new NeoForgeItemHooks());
+        WrappedPlayerInventory.factory = NeoForgeWrappedPlayerInventory::new;
+
         new AE2wtlibAPIImplementation();
-        modContainer.registerConfig(ModConfig.Type.COMMON, AE2wtlibConfig.SPEC,
-                AE2wtlibAPI.MOD_NAME + ".toml");
-        AE2wtlibItems.DR.register(modEventBus);
+        NeoForgeConfigStore.register(modContainer, ModConfig.Type.COMMON, AE2wtlibConfig.FILE_NAME,
+                AE2wtlibConfig::register);
+        AE2wtlibItems.init();
+        NeoForgeItemFactory.register(modEventBus);
         modEventBus.addListener((RegisterEvent e) -> {
             if (e.getRegistryKey().equals(Registries.MENU)) {
                 AE2wtlib.registerMenus();
@@ -67,14 +90,14 @@ public class AE2wtlibForge {
             registerS2C(registrar, UpdateRestockPacket.ID, UpdateRestockPacket.STREAM_CODEC);
             registerS2C(registrar, RestockAmountPacket.ID, RestockAmountPacket.STREAM_CODEC);
         });
-        modEventBus.addListener(AE2wtlib::registerScreens);
+        modEventBus.addListener(NeoForgeScreens::registerScreens);
         modEventBus.addListener((RegisterCapabilitiesEvent event) -> {
             registerPowerStorageItem(event, AE2wtlibItems.UNIVERSAL_TERMINAL.asItem());
             registerPowerStorageItem(event, AE2wtlibItems.PATTERN_ACCESS_TERMINAL.asItem());
             registerPowerStorageItem(event, AE2wtlibItems.PATTERN_ENCODING_TERMINAL.asItem());
         });
         AE2wtlibAdditionalComponents.init();
-        AE2wtlib.ATTACHMENT_TYPES.register(modEventBus);
+        NeoForgeAttachments.register(modEventBus);
     }
 
     private static <T extends AE2wtlibPacket> void registerC2S(PayloadRegistrar registrar,

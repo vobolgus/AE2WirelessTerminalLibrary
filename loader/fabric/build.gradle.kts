@@ -116,10 +116,15 @@ loom {
 }
 
 // ---------------------------------------------------------------------------
-// Shared-source gates (W1: both OFF - the shared trees are still NeoForge-coupled)
+// Shared-source gates.
+//   W1: both OFF - the shared trees were still NeoForge-coupled and only the skeleton had to build.
+//   W2 onwards: both ON by default. The seams landed and the Fabric platform layer now *references* the shared
+//   trees, so a build with them off no longer compiles. The switches are kept (they still accept
+//   -Pae2wtlib.fabric.api=true / -Pae2wtlib.fabric.shared=true, and =false for a deliberate bisect) so the W1
+//   command crib and any CI job that still passes them keeps working.
 // ---------------------------------------------------------------------------
-val includeSharedApiSources = providers.gradleProperty("ae2wtlib.fabric.api").getOrElse("false") == "true"
-val includeSharedSources = providers.gradleProperty("ae2wtlib.fabric.shared").getOrElse("false") == "true"
+val includeSharedApiSources = providers.gradleProperty("ae2wtlib.fabric.api").getOrElse("true") == "true"
+val includeSharedSources = providers.gradleProperty("ae2wtlib.fabric.shared").getOrElse("true") == "true"
 
 sourceSets {
     named("main") {
@@ -130,6 +135,32 @@ sourceSets {
         if (includeSharedSources) {
             java.srcDir(rootProject.file("src/main/java"))
             resources.srcDir(rootProject.file("src/main/resources"))
+        }
+        java {
+            // ---------------------------------------------------------------
+            // NeoForge overlay - the loader-specific halves of the shared seams. These live in the shared tree
+            // (so the NeoForge build stays a plain single-module build) but must never reach the Fabric compile.
+            // ---------------------------------------------------------------
+            exclude("de/mari_023/ae2wtlib/neoforge/**")
+            exclude("de/mari_023/ae2wtlib/api/AE2wtlibAPIEntrypoint.java")
+
+            // ---------------------------------------------------------------
+            // W3 - the NeoForge event surface. AE2wtlibForge/AE2wtlibClient are the @Mod classes; their bodies
+            // are re-homed into the two Fabric entrypoints + mixins in W3.
+            // ---------------------------------------------------------------
+            exclude("de/mari_023/ae2wtlib/AE2wtlibForge.java")
+            exclude("de/mari_023/ae2wtlib/AE2wtlibClient.java")
+
+            // ---------------------------------------------------------------
+            // W6 - recipe viewer plugins (JEI/REI entrypoints on Fabric; EMI has no 26.1 Fabric artifact).
+            // ---------------------------------------------------------------
+            exclude("de/mari_023/ae2wtlib/recipeviewer/**")
+
+            // ---------------------------------------------------------------
+            // W3 - mixins whose targets reference still-excluded classes (GuiMixin -> AE2wtlibClient).
+            // The rest of the mixin package compiles; see ae2wtlib.fabric.mixins.json for what is ACTIVE.
+            // ---------------------------------------------------------------
+            exclude("de/mari_023/ae2wtlib/mixin/GuiMixin.java")
         }
         resources {
             // NeoForge metadata must never ship in the Fabric jar.
@@ -162,12 +193,23 @@ dependencies {
     // AE2's client classes (AEBaseScreen and friends) reference GuideME types in their signatures.
     compileOnly("org.appliedenergistics:guideme-fabric:${prop("guideme_fabric_version")}")
 
+    // night-config backs the Fabric config store (the twin of NeoForge's ModConfigSpec). AE2's Fabric jar
+    // already jar-in-jars the same coordinates; loader de-duplicates nested jars, and shipping our own keeps
+    // this jar self-contained instead of depending on another mod's nested libraries.
+    implementation("com.electronwill.night-config:toml:${prop("night_config_version")}")
+    "include"("com.electronwill.night-config:core:${prop("night_config_version")}")
+    "include"("com.electronwill.night-config:toml:${prop("night_config_version")}")
+
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     compileOnly("org.jspecify:jspecify:1.0.0")
 }
 
 tasks {
     processResources {
+        // Three resource roots (this project + both shared trees) each ship an icon.png; loader/fabric's own copy is
+        // the one referenced by fabric.mod.json and it comes first, so keep the first and drop the rest.
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
         inputs.property("version", version)
         inputs.property("ae2_version", ae2Version)
 

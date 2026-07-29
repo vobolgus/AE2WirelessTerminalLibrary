@@ -22,3 +22,9 @@ mutable	field	net/minecraft/world/inventory/Slot	y	I
 #   NOTE (playbook Part 2): AW FIELD-widening has proved flaky in this workspace - if this entry
 #   does not take effect, replace it with an @Accessor mixin on ItemEntity in the Fabric overlay.
 accessible	field	net/minecraft/world/entity/item/ItemEntity	target	Ljava/util/UUID;
+
+# NOT from an AT - surfaced when the shared tree first compiled on Fabric (W2).
+# IUniversalTerminalCapable#checkForTerminalKeys calls player.closeContainer(), which NeoForge patches to public but
+# vanilla declares protected. AE2's own accesswidener already carries this entry and loom applies dependency AWs
+# transitively, but relying on another mod's AW is fragile - declare it here too (widening is idempotent).
+accessible	method	net/minecraft/world/entity/player/Player	closeContainer	()V

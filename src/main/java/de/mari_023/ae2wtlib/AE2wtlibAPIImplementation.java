@@ -5,12 +5,12 @@ import java.util.function.Supplier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import appeng.api.upgrades.IUpgradeInventory;
 import appeng.menu.locator.ItemMenuHostLocator;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibAPIImpl;
+import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.networking.UpdateWUTPackage;
 
 public class AE2wtlibAPIImplementation extends AE2wtlibAPIImpl {
@@ -26,7 +26,7 @@ public class AE2wtlibAPIImplementation extends AE2wtlibAPIImpl {
 
     @Override
     public void updateClientTerminal(ServerPlayer player, ItemMenuHostLocator locator, ItemStack stack) {
-        PacketDistributor.sendToPlayer(player, new UpdateWUTPackage(locator, stack));
+        Ae2wtlibNet.get().sendToPlayer(player, new UpdateWUTPackage(locator, stack));
     }
 
     @Override

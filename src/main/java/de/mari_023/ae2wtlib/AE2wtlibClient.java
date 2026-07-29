@@ -13,14 +13,15 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import de.mari_023.ae2wtlib.api.terminal.ItemWUT;
+import de.mari_023.ae2wtlib.neoforge.NeoForgeConfigStore;
 import de.mari_023.ae2wtlib.networking.CycleTerminalPacket;
 import de.mari_023.ae2wtlib.wct.CraftingTerminalHandler;
 
 @Mod(value = AE2wtlibAPI.MOD_NAME, dist = Dist.CLIENT)
 public class AE2wtlibClient {
     public AE2wtlibClient(IEventBus modEventBus, ModContainer modContainer) {
-        modContainer.registerConfig(ModConfig.Type.CLIENT, AE2wtlibClientConfig.SPEC,
-                AE2wtlibAPI.MOD_NAME + "-client.toml");
+        NeoForgeConfigStore.register(modContainer, ModConfig.Type.CLIENT, AE2wtlibClientConfig.FILE_NAME,
+                AE2wtlibClientConfig::register);
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 
