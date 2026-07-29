@@ -18,9 +18,9 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 | **W1** | recon + dual-loader skeleton | ✅ **DONE** (this document + `loader/fabric`) |
 | **W2** | foundation seams (registration, config, network, components) | ✅ **DONE** 2026-07-29 — see §8 |
 | **W3** | events + mixins (the NeoForge event surface) **+ the client layer** | ✅ **DONE** 2026-07-29 — see §9 |
-| W4 | capabilities / transfer (energy + inventories) | ▫ |
+| **W4** | capabilities / transfer (energy + inventories) | ✅ **DONE** 2026-07-29 — see §10 |
 | ~~W5~~ | ~~client: screens, GUI, hotkeys, scroll input~~ | **absorbed into W3** (§9.5) |
-| W6 | integrations (JEI / REI / EMI, Curios→Trinkets) | ▫ |
+| **W6** | integrations (JEI / REI / EMI, Curios→Trinkets) | ✅ **DONE** 2026-07-29 — see §11 |
 | W7 | gates: gametest → Prism in-world → real-network MP; polish | ▫ |
 
 **W1 gates (both green, 2026-07-29):**
@@ -39,7 +39,7 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
   recorded from an earlier state of `AE2wtlibFabric.init()`. Root cause and fix: §9.4. **Lesson: re-run a gate
   from the commit you are claiming it for.**
 
-**W3 gates (all green, 2026-07-29):** see §9.6.
+**W3 gates:** §9.6. **W4 + W6 gates:** §11.4. — all green, 2026-07-29.
 
 ---
 
@@ -386,8 +386,8 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 | **R13** | **NeoForge extension-method surface** was invisible to the W1 import scan; more may still be hiding in the W3/W5 files | medium | 3 found and sealed behind `Ae2wtlibItemHooks` (§8.2); one carries a real behaviour gap (`PreventRemoteMovement`). Expect more when the event surface and the client tree compile. |
 | **R14** | **`new ItemStack(...)` during mod init is illegal on 26.1** - item data components are bound lazily by `DataComponentInitializers`, with the reloadable server resources | ~~unknown~~ **CLOSED (W3)** | It was a hard `runServer` crash, inherited from W2 (`Components not bound yet`). Creative-tab contents are now built lazily in `buildDisplayItems`. §9.4 - audit any other eager `ItemStack` in a registration path. |
 | **R15** | **Fabric client entrypoint ordering** - our `ClientModInitializer` can run before AE2's, i.e. before our own payload types/menus exist | ~~unknown~~ **MITIGATED (W3)** | Hit immediately on the first `runClient`. `FabricClientBootstrap` rendezvous; §9.5. Same root cause as R12 - the durable fix is an AE2-fork addon entrypoint. |
-| R7 | EMI has no 26.1 Fabric artifact | low | drop the EMI plugin from the Fabric jar (W6) |
-| R8 | REI entrypoint-timing crash (empty-ctor rule) | low | known + documented; AE2 fork hit and fixed it |
+| ~~R7~~ | EMI has no 26.1 Fabric artifact | ~~low~~ **CLOSED (W6)** | `recipeviewer/AE2wtlibEmiPlugin.java` is the single remaining Fabric source-set exclude. The AE2 fork made the same call for its own EMI converter API. Revisit if an EMI 26.1 Fabric build ever ships. |
+| ~~R8~~ | REI entrypoint-timing crash (empty-ctor rule) | ~~low~~ **CLOSED (W6)** | Honoured by construction (§11.2) and verified live: `runClient -PruntimeItemlistMod=rei` logs `Registered plugin provider ae2wtlib [ae2wtlib] for REIClientPlugin` with zero ERROR. |
 | ~~R9~~ | AW field-widening flakiness (`ItemEntity.target`) | ~~low~~ **MOOT** | W3's `ItemEntityMixin` `@Shadow`s the field instead of relying on the AW; the AW line is kept only as a faithful AT translation. |
 | R10 | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | ✅ common list on Fabric, confirmed applying on a dedicated server (§9.3). **Still to report upstream.** |
 | R11 | No automated tests anywhere in this repo | medium | W7: crib AE2's Fabric gametest runner; at minimum place/spawn-and-tick every registered item + a recipe-presence test (playbook rules #6, #8) |
@@ -741,3 +741,152 @@ The single remaining marker is `W2-STUB (W4)` in `AE2wtlibFabric.init()` — `Re
 - Other fabric-api 26.1 renames found during recon and worth knowing for the next port:
   `ItemGroupEvents`/`FabricItemGroupEntries` → `net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents` /
   `FabricCreativeModeTabOutput`; `KeyBindingHelper` → `KeyMappingHelper`.
+
+---
+
+## 10. W4 — capabilities / transfer (landed 2026-07-29)
+
+### 10.1 Seam #7 — the energy capability (the last `W2-STUB`)
+
+| | NeoForge | Fabric |
+|---|---|---|
+| hook | `RegisterCapabilitiesEvent` listener on the mod bus | direct call from `AE2wtlibFabric.init()` |
+| lookup | `Capabilities.Energy.ITEM` | `team.reborn.energy.api.EnergyStorage.ITEM` |
+| adapter | `appeng.items.tools.powered.powersink.PoweredItemCapabilities` | `appeng.fabric.transfer.PoweredItemEnergyStorage` |
+| call | `event.registerItem(cap, (_, ctx) -> new PoweredItemCapabilities(ctx, item, item), item)` | `EnergyStorage.ITEM.registerForItems((stack, ctx) -> new PoweredItemEnergyStorage(ctx, item, item), item)` |
+
+`PoweredItemCapabilities` is a NeoForge-overlay class in our AE2 fork with no Fabric class of that name (§3.2); the
+fork's twin `PoweredItemEnergyStorage` takes the identical three arguments
+(`ContainerItemContext`, the valid `Item`, the `IAEItemPowerStorage`), and `ItemWT` is both of the latter two — so the
+mapping is 1:1. The code is copied from `appeng.fabric.init.InitApiLookup#registerPowerStorageItem`, which is how AE2
+registers its own chargeable items. Landed as `de.mari_023.ae2wtlib.fabric.transfer.FabricEnergy`.
+
+**Three items, not four.** Universal, pattern access, pattern encoding — exactly the NeoForge list. The wireless
+*crafting* terminal is absent on **both** loaders on purpose: this mod does not register that item (`AEItemsMixin`
+swaps AE2's own factory for `ItemWCT`), so AE2's `registerPowerStorageItem(AEItems.WIRELESS_CRAFTING_TERMINAL)`
+already covers it and resolves to our class.
+
+**Ordering** (playbook Part 8 — duplicate `ItemApiLookup` providers are *first registration wins*): we run at the TAIL
+of `AppEngFabric#init`, i.e. strictly after AE2's `InitApiLookup`. The item sets are disjoint so nothing can shadow
+anything, but the ordering is the safe one regardless.
+
+**⚠ Dependency subtlety worth remembering.** `teamreborn:energy` is jar-in-jar'd by AE2's Fabric jar *and* listed in
+its `runtimeElements` — the mod list in a dev run shows `team_reborn_energy 5.0.0` — but it is **not** in
+`apiElements`, so it is absent from a consumer's *compile* classpath. Nested jars never land there either. Hence
+`compileOnly("teamreborn:energy:…")` plus the TeamReborn repo (`https://maven.modmuss50.me/`), and deliberately **no**
+`include(...)`: shipping a second copy would just make loader de-duplicate.
+
+### 10.2 Seam #8 — `WrappedPlayerInventory`: no Fabric code needed, and now proven
+
+Upstream's `WrappedPlayerInventory` overrode `InternalInventory#toResourceHandler()` to return
+`PlayerInventoryWrapper.of(playerInventory())`. Our fork removed that method from `InternalInventory` and replaced it
+with the **static dispatcher** `appeng.fabric.transfer.FabricResources#toStorage(InternalInventory)`, which switches on
+the concrete inventory type and otherwise falls back to a generic `InternalInventoryStorage`. **There is therefore no
+per-inventory override point on Fabric at all** — a third-party `InternalInventory` cannot substitute its own view.
+
+That costs nothing here, by call-site analysis:
+
+- `WrappedPlayerInventory` has exactly **one** consumer in this mod — `wct/ArmorSlot`, which hands it to `AppEngSlot`
+  as a menu-slot backing. Menu slots never touch the transfer API.
+- On the AE2 side, **every** caller of `FabricResources#toStorage` (`InitApiLookup:142/194/222/270`) and of its
+  NeoForge twin `NeoForgeResources#toResourceHandler` (`InitCapabilityProviders:107/175/209/262`) is a
+  block-entity/part API-lookup registration. Never a menu inventory.
+
+So upstream's override is a defensive dead branch and its absence is unobservable. `FabricWrappedPlayerInventory`
+stays empty, with the analysis and the one theoretical gap recorded in its javadoc (if anything ever *did* route this
+inventory through the transfer API, the generic adapter would expose only the armour+offhand view — closing that would
+be a change in the **AE2 fork**, not here).
+
+> Generalises: when a dual-loader port meets a *virtual* extension point on one loader and a *static dispatcher* on the
+> other, the honest move is a call-site audit, not a plausible-looking adapter nobody calls.
+
+---
+
+## 11. W6 — recipe viewers (landed 2026-07-29)
+
+### 11.1 JEI — entrypoint only, class unchanged
+
+Fabric does **not** scan `@JeiPlugin` (that is NeoForge's discovery mechanism), but the annotation itself lives in
+JEI's *common* API, so the shared `recipeviewer/JEIPlugin` compiles on Fabric untouched and keeps working on NeoForge.
+Discovery is the `jei_mod_plugin` entrypoint in `fabric.mod.json`. Dependency:
+`compileOnly("mezz.jei:jei-26.1.2-fabric-api:29.19.0.51")` — the `-fabric-api` artifact carries the Fabric-only classes
+and pulls `-common-api` transitively.
+
+Unlike REI, JEI instantiates plugins late enough that a non-empty constructor is fine (AE2's own `JEIPlugin` does real
+work in its ctor). Ours has none anyway.
+
+### 11.2 REI — the annotation moves to a NeoForge overlay (and R8)
+
+`@me.shedaniel.rei.forge.REIPluginClient` is **NeoForge-only**. Exactly as our AE2 fork did for
+`appeng.client.integration.rei.ReiClientPlugin`, the shared `recipeviewer/REIPlugin` is now annotation-free and the
+annotation lives on a 3-line overlay subclass `de.mari_023.ae2wtlib.neoforge.NeoForgeREIPlugin` (which the Fabric
+source set already excludes via `neoforge/**`). On Fabric the shared class is wired through the `rei_client`
+entrypoint. There is no `rei_common` plugin — this mod has no server-side REI surface.
+
+**R8, the entrypoint-ctor rule.** REI constructs its `rei_common`/`rei_client` entrypoints during *its own* loader
+entrypoint, which on a client always precedes ours; the AE2 fork's 2026-07-04 crash was a `static final`
+mod-loaded check evaluated in that window. Our plugin honours the rule for free, and the javadoc now says why so it
+cannot be regressed accidentally:
+
+1. no explicit constructor;
+2. `getPluginProviderName()` returns `AE2wtlibAPI.MOD_NAME`, a compile-time `String` constant — javac inlines it, so
+   not even `AE2wtlibAPI` is class-loaded;
+3. `WTDefinitions` — whose static initializer **throws** unless terminal registration already happened — is touched
+   only from `registerCategories`, which REI calls post-init on every reload.
+
+**Dependencies.** The `-neoforge` REI API artifacts are used deliberately, mirroring the fork's proven pin: since REI
+26.1.x both flavours are mojmap with an identical API. All `compileOnly` and `isTransitive = false` (their poms drag in
+`cloth-config-neoforge` & co.), with `dev.architectury:architectury-neoforge` and `me.shedaniel.cloth:basic-math`
+pinned explicitly instead. Nothing ships — at runtime the real REI provides the classes.
+
+### 11.3 EMI — dropped (R7 closed)
+
+Upstream pins `dev.emi:emi-neoforge:1.1.22+1.21.1`; there is no 26.1 Fabric EMI artifact. The W1 package-wide exclude
+`recipeviewer/**` is now a single-file exclude of `AE2wtlibEmiPlugin.java`, so JEI and REI ship while EMI does not.
+The AE2 fork made the same call for its own EMI converter API.
+
+### 11.4 Gates (all green, 2026-07-29)
+
+| Gate | Result |
+|---|---|
+| `./gradlew :loader:fabric:build` | **GREEN** |
+| `./gradlew build spotlessCheck -PruntimeItemlistMod=none` | **GREEN** |
+| `./gradlew assemble -Pae2wtlib.skipFabric=true` | **GREEN** |
+| `./gradlew :loader:fabric:runServer -PruntimeItemlistMod=none` | **GREEN** — `Done (0.235s)!`, 0 ERROR, `AE2wtlib Fabric platform layer initialized (W4: transfer seams)` |
+| `./gradlew :loader:fabric:runClient -PruntimeItemlistMod=rei` | **GREEN** — `[REI] Registered plugin provider ae2wtlib [ae2wtlib] for REIClientPlugin`, 0 ERROR, title screen reached |
+| `./gradlew :loader:fabric:runClient -PruntimeItemlistMod=jei` | **GREEN** — JEI loaded, 0 ERROR, no entrypoint errors, title screen reached |
+| Fabric jar audit | `recipeviewer/JEIPlugin.class` + `REIPlugin.class` present; no EMI plugin, no `de/mari_023/ae2wtlib/neoforge/**` |
+
+**A dev-only item-list switch** was added to make the last two gates possible: a hand-made `localRuntimeOnly`
+configuration that `runtimeClasspath` extends (same construction as the AE2 fork), selected with
+`-PruntimeItemlistMod=rei|jei|none` — the root project's existing property. It never reaches a published or consumed
+classpath.
+
+⚠ **Both viewers are verified only up to plugin *registration*.** Neither REI's `registerCategories` nor JEI's
+`registerRecipeCatalysts` runs at the title screen — both fire on the first world load — so the actual
+"universal terminal appears as a crafting workstation" assertion is a **W7 in-world** item, not a headless one.
+
+### 11.5 Stub inventory after W4 + W6
+
+`grep -rn "W[0-9]-STUB" loader/fabric src ae2wtlib_api` → **zero matches.** Every wave-tagged stub is closed.
+
+Remaining deferrals are all deliberate and documented, none of them stubs:
+
+- **Curios → Trinkets** — out of scope by design (§5). Upstream has it commented out on NeoForge too, and the honest
+  dependency chain is that AE2's `FabricCuriosSupport` must be implemented against Trinkets **in the AE2 fork** first.
+- **EMI** — R7, no 26.1 Fabric artifact.
+- **`IConfigScreenFactory`** — no in-tree Fabric equivalent; ModMenu is the usual host and a config screen is not a
+  parity requirement.
+- **Seam #8's theoretical transfer-API gap** — §10.2, an AE2-fork change if it ever matters.
+
+### 11.6 W7 — what is actually left
+
+1. **Gametests.** This repo has no test harness at all (R11) — AE2's fork has a working Fabric gametest runner to crib
+   (70 tests there). Minimum bar per playbook rules #6/#8: spawn-and-tick every registered item, a recipe-presence test
+   for the two custom serializers, and a restock round-trip.
+2. **The Prism in-world ladder.** Restock (all six trigger paths), magnet, stow, the three hotkeys, WUT shift-scroll
+   cycling, the five screens, and the two recipe-viewer assertions from §11.4.
+3. **A real-network multiplayer join** (R5). Six payloads, one enum codec and item stacks on the wire; singleplayer
+   never serializes them and gametests will not catch it. Playbook Part 10.
+4. **Pack integration** — build the jar into `create26-ports/pack/mods-local/`, alongside the AE2 and GuideME Fabric
+   jars, and re-verify in the live Prism instance.
