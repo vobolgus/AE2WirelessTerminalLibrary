@@ -61,6 +61,16 @@ repositories {
         url = uri("https://libraries.minecraft.net/")
     }
     maven {
+        // Team Reborn Energy - the Fabric energy API AE2 exposes its chargeable items over (seam #7, W4).
+        // AE2's Fabric jar jar-in-jars it, so it is a RUNTIME transitive already; this repo only serves the
+        // compileOnly stub (nested jars are not on a consumer's compile classpath).
+        name = "TeamReborn"
+        url = uri("https://maven.modmuss50.me/")
+        content {
+            includeGroup("teamreborn")
+        }
+    }
+    maven {
         url = uri("https://maven.shedaniel.me/")
         content {
             includeGroup("me.shedaniel")
@@ -153,9 +163,11 @@ sourceSets {
             exclude("de/mari_023/ae2wtlib/AE2wtlibClient.java")
 
             // ---------------------------------------------------------------
-            // W6 - recipe viewer plugins (JEI/REI entrypoints on Fabric; EMI has no 26.1 Fabric artifact).
+            // W6 - recipe viewers. JEI and REI are IN (see the entrypoints in fabric.mod.json); only EMI is out:
+            // upstream pins `dev.emi:emi-neoforge:1.1.22+1.21.1` and there is no 26.1 Fabric EMI artifact at all
+            // (R7). The AE2 fork made the same call for its own EMI converter API.
             // ---------------------------------------------------------------
-            exclude("de/mari_023/ae2wtlib/recipeviewer/**")
+            exclude("de/mari_023/ae2wtlib/recipeviewer/AE2wtlibEmiPlugin.java")
 
             // ---------------------------------------------------------------
             // W3 (R4) - the one shared mixin that is genuinely NeoForge-only: ServerPlayerMixin captures
@@ -181,6 +193,11 @@ sourceSets {
     }
 }
 
+// Dev-only runtime classpath: never published, never seen by consumers (loom's `runtimeOnly` would leak into
+// the POM). Same construction as the AE2 fork uses for its item-list mods.
+val localRuntimeOnly: Configuration = configurations.create("localRuntimeOnly")
+configurations["runtimeClasspath"].extendsFrom(localRuntimeOnly)
+
 dependencies {
     "minecraft"("com.mojang:minecraft:${prop("minecraft_version")}")
     // MC 26.1+ is unobfuscated: NO `mappings` line, and loom 1.17 dropped the `mod*` remapping
@@ -203,6 +220,47 @@ dependencies {
     implementation("com.electronwill.night-config:toml:${prop("night_config_version")}")
     "include"("com.electronwill.night-config:core:${prop("night_config_version")}")
     "include"("com.electronwill.night-config:toml:${prop("night_config_version")}")
+
+    // W4 seam #7 - Team Reborn Energy, the Fabric energy API AE2 exposes chargeable items over.
+    // compileOnly and NOT `include`d on purpose: AE2's Fabric jar already jar-in-jars teamreborn:energy and
+    // declares it in its runtimeElements, so it is present at runtime (the runServer/runClient mod list shows
+    // `team_reborn_energy 5.0.0`). It is absent from AE2's apiElements, which is why the compile stub is needed.
+    compileOnly("teamreborn:energy:${prop("tr_energy_version")}")
+
+    // ---------------------------------------------------------------------------------------------------
+    // W6 - recipe viewers. Both are compileOnly: the plugins are discovered through fabric.mod.json
+    // entrypoints and simply never load if the viewer is absent.
+    // ---------------------------------------------------------------------------------------------------
+    // JEI: the `-fabric-api` artifact carries the Fabric-only classes and pulls `-common-api` transitively.
+    // ⚠ Fabric does NOT scan the @JeiPlugin annotation (that is NeoForge's discovery); the annotation itself
+    // lives in the common API, so the shared JEIPlugin compiles unchanged and the `jei_mod_plugin` entrypoint
+    // does the discovering.
+    compileOnly("mezz.jei:jei-${prop("jeiMinecraftVersion")}-fabric-api:${prop("jeiVersion")}")
+
+    // REI: the `-neoforge` API artifacts are used deliberately - since REI 26.1.x both flavours are mojmap and
+    // carry an identical API, and this is the pin our AE2 fork proved on 26.1.819. transitive=false because
+    // their poms drag in cloth-config-neoforge & co. that we neither need nor want resolved here; architectury
+    // (REI's fluid entry type) and cloth basic-math are pinned explicitly instead. Nothing here ever ships:
+    // at runtime the real REI provides the classes.
+    compileOnly("me.shedaniel:RoughlyEnoughItems-api-neoforge:${prop("reiVersion")}") { isTransitive = false }
+    compileOnly("me.shedaniel:RoughlyEnoughItems-default-plugin-neoforge:${prop("reiVersion")}") {
+        isTransitive = false
+    }
+    compileOnly("dev.architectury:architectury-neoforge:${prop("architecturyVersion")}") { isTransitive = false }
+    compileOnly("me.shedaniel.cloth:basic-math:${prop("cloth_basic_math_version")}") { isTransitive = false }
+
+    // Dev-runtime item-list mod, so the two entrypoints above can actually be exercised by runClient.
+    // `localRuntimeOnly` keeps it off every published/consumed classpath (same shape as the AE2 fork).
+    // Select with -PruntimeItemlistMod=rei|jei|none (the root project's existing property).
+    when (providers.gradleProperty("runtimeItemlistMod").getOrElse("none")) {
+        "rei" -> {
+            localRuntimeOnly("me.shedaniel:RoughlyEnoughItems-fabric:${prop("reiVersion")}")
+            localRuntimeOnly("dev.architectury:architectury-fabric:${prop("architecturyVersion")}")
+        }
+
+        "jei" -> localRuntimeOnly("mezz.jei:jei-${prop("jeiMinecraftVersion")}-fabric:${prop("jeiVersion")}")
+        // "emi": no 26.1 Fabric EMI artifact exists (R7) - the dev client just runs without an item-list mod.
+    }
 
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
     compileOnly("org.jspecify:jspecify:1.0.0")

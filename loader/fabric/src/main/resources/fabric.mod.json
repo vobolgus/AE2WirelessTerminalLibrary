@@ -21,6 +21,12 @@
     ],
     "client": [
       "de.mari_023.ae2wtlib.fabric.client.AE2wtlibFabricClient"
+    ],
+    "jei_mod_plugin": [
+      "de.mari_023.ae2wtlib.recipeviewer.JEIPlugin"
+    ],
+    "rei_client": [
+      "de.mari_023.ae2wtlib.recipeviewer.REIPlugin"
     ]
   },
   "mixins": [

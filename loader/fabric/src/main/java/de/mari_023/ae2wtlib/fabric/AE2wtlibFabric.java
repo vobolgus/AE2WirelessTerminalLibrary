@@ -23,6 +23,7 @@ import de.mari_023.ae2wtlib.fabric.config.FabricConfigStore;
 import de.mari_023.ae2wtlib.fabric.event.Ae2wtlibFabricEvents;
 import de.mari_023.ae2wtlib.fabric.network.FabricNet;
 import de.mari_023.ae2wtlib.fabric.network.FabricNetworkInit;
+import de.mari_023.ae2wtlib.fabric.transfer.FabricEnergy;
 import de.mari_023.ae2wtlib.registration.Ae2wtlibItemFactory;
 import de.mari_023.ae2wtlib.wct.ItemWCT;
 import de.mari_023.ae2wtlib.wct.WrappedPlayerInventory;
@@ -107,14 +108,17 @@ public class AE2wtlibFabric implements ModInitializer {
         // ae2wtlib.fabric.platform.mixins.json. See Ae2wtlibFabricEvents for the per-event rationale (R3).
         Ae2wtlibFabricEvents.register();
 
-        // W2-STUB (W4): RegisterCapabilitiesEvent -> EnergyStorage.ITEM.registerForItems(...) with AE2's
-        // appeng.fabric.transfer.PoweredItemEnergyStorage for the 3 powered terminals.
+        // 7. NeoForge: RegisterCapabilitiesEvent -> Capabilities.Energy.ITEM (seam #7, W4). Runs after AE2's own
+        // InitApiLookup; see FabricEnergy for the mapping and the first-registration-wins note.
+        // Seam #8 (WrappedPlayerInventory -> transfer API) needs NO Fabric code at all - see
+        // FabricWrappedPlayerInventory for the call-site analysis that closes it.
+        FabricEnergy.registerPowerStorageItems();
 
-        // 7. Release the client wiring that had to wait for the registrations above (S2C receivers, screens).
+        // 8. Release the client wiring that had to wait for the registrations above (S2C receivers, screens).
         // No-op on a dedicated server - nothing ever supplies the Runnable there.
         FabricClientBootstrap.onCommonInitDone();
 
-        LOG.info("AE2wtlib Fabric platform layer initialized (W3: event surface).");
+        LOG.info("AE2wtlib Fabric platform layer initialized (W4: transfer seams).");
     }
 
     /**
