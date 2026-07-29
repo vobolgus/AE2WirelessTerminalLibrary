@@ -17,11 +17,11 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 |---|---|---|
 | **W1** | recon + dual-loader skeleton | ✅ **DONE** (this document + `loader/fabric`) |
 | **W2** | foundation seams (registration, config, network, components) | ✅ **DONE** 2026-07-29 — see §8 |
-| W3 | events + mixins (the NeoForge event surface) | ▫ |
+| **W3** | events + mixins (the NeoForge event surface) **+ the client layer** | ✅ **DONE** 2026-07-29 — see §9 |
 | W4 | capabilities / transfer (energy + inventories) | ▫ |
-| W5 | client: screens, GUI, hotkeys, scroll input | ▫ |
+| ~~W5~~ | ~~client: screens, GUI, hotkeys, scroll input~~ | **absorbed into W3** (§9.5) |
 | W6 | integrations (JEI / REI / EMI, Curios→Trinkets) | ▫ |
-| W7 | gates: runServer → gametest → runClient → Prism; polish | ▫ |
+| W7 | gates: gametest → Prism in-world → real-network MP; polish | ▫ |
 
 **W1 gates (both green, 2026-07-29):**
 - `./gradlew assemble -PruntimeItemlistMod=none` (NeoForge, root + `:ae2wtlib_api`) — **GREEN**, unchanged behaviour.
@@ -33,10 +33,13 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 - `./gradlew :loader:fabric:build` — **GREEN** with the whole shared tree compiled, minus the W3 event surface
   and the W6 recipe-viewer plugins. ⚠ The `-Pae2wtlib.fabric.api/shared` switches now **default to `true`**:
   the platform layer references the shared trees, so a build with them off no longer compiles.
-- **Bonus — the W4 gate came free:** `./gradlew :loader:fabric:runServer` boots a dedicated server clean
-  (`Done (4.584s)!`, zero ERROR beyond a missing `server.properties` on first run). That exercises item
-  registration, data components, the config store, menus, recipes, hotkeys, the creative tab, grid linkables,
-  upgrades and payload-type registration — and proves **R6** (see §8.3).
+- ~~**Bonus — the W4 gate came free:** `./gradlew :loader:fabric:runServer` boots a dedicated server clean.~~
+  ⚠ **RETRACTED in W3.** Re-running `runServer` on commit `e6947731` reproduces a hard boot failure
+  (`NullPointerException: Components not bound yet`), so this gate was never actually green — the claim was
+  recorded from an earlier state of `AE2wtlibFabric.init()`. Root cause and fix: §9.4. **Lesson: re-run a gate
+  from the commit you are claiming it for.**
+
+**W3 gates (all green, 2026-07-29):** see §9.6.
 
 ---
 
@@ -375,16 +378,18 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 |---|---|---|---|
 | R1 | **`ItemDefinition` ctor + `AEItems.DR` divergence** between upstream AE2 (`:neoforge`) and our fork (`:fabric`) forces a per-loader item-registration factory | ~~high~~ **CLOSED** (W2) | seam #1 landed; 3 of 11 predicted divergences bit, all in already-coupled files (§8.4). Fallback not needed. |
 | R2 | **AE2 Fabric jar is hand-installed in mavenLocal** — no reproducible publish, silently stale after an AE2 rebase | ~~high~~ **CLOSED** | the AE2 fork now publishes `org.appliedenergistics:appliedenergistics2-fabric:26.1.10-beta` to mavenLocal properly (POM + `.module` + sources/javadoc). Re-run `:fabric:publishToMavenLocal` after every AE2 rebase and keep `ae2Version` in lock-step. |
-| R3 | **Restock is the feature, and it is 100% event-driven** — 6 NeoForge events with priority semantics (`EventPriority.LOWEST`, `event.isCanceled()`) that Fabric callbacks do not reproduce | **high** | W3: prefer TAIL/RETURN mixins over fabric-api callbacks where ordering matters; verify in-world, not just headless |
-| R4 | `@Local(name=…)` in two mixins (`selected`, `slotWithExistingItem`) | medium | javap/`--debug` verify against the merged jar before W3; unobfuscated 26.1 keeps parameter names but locals can still drift |
+| ~~R3~~ | **Restock is the feature, and it is 100% event-driven** — 6 NeoForge events with priority semantics (`EventPriority.LOWEST`, `event.isCanceled()`) that Fabric callbacks do not reproduce | ~~high~~ **CLOSED (headless)** | W3 mapped all 9 listeners - §9.1. `LOWEST` + `isCanceled` map exactly onto a fabric-api late **phase** + the array-backed invoker's non-`PASS` short-circuit, so the two interaction events are callbacks; the other four have no fabric-api equivalent at all and became javap-verified mixins. In-world verification still open (W7). |
+| ~~R4~~ | `@Local(name=…)` in two mixins (`selected`, `slotWithExistingItem`) | ~~medium~~ **CLOSED - and it BIT** | `slotWithExistingItem` is real; **`selected` does not exist in vanilla** (NeoForge patch adds it) and `removed` is not a substitute. Shared `ServerPlayerMixin` excluded from the Fabric tree, `ServerPlayerDropMixin` added. All 11 mixins confirmed applied at runtime with `-Dmixin.debug.verbose=true`. §9.2 |
 | R5 | **Multiplayer packet desync** — 6 payloads, one enum codec, item stacks | medium | playbook Part 10; format-pinning tests + a real-network join in W7. Singleplayer and gametests will NOT catch it |
 | R6 | `AEItemsMixin` replaces an **AE2-owned item class** — if AE2's Fabric registration path constructs items differently, the swap may not take | ~~medium~~ **CLOSED** (W2) | verified **live**: the swap takes against the fork's `AEItemEntry` path. Asserted at init by `AE2wtlibFabric.verifyWirelessCraftingTerminalSwap()`, and a dedicated server boots past it (§8.3). |
 | **R12** | **Fabric Loader does not order entrypoints by mod dependency**, and AE2 registers content from a different entrypoint per dist → wrong item raw ids on one side = silent MP corruption | ~~critical~~ **MITIGATED** (W2) | registration is driven from a TAIL mixin on `AppEngFabric#init` (§8.3). ⚠ `AppEngFabric` exists only in our AE2 fork — **re-verify the target on every AE2 rebase**. Durable fix = an `ae2:registration` addon entrypoint in the AE2 fork. |
 | **R13** | **NeoForge extension-method surface** was invisible to the W1 import scan; more may still be hiding in the W3/W5 files | medium | 3 found and sealed behind `Ae2wtlibItemHooks` (§8.2); one carries a real behaviour gap (`PreventRemoteMovement`). Expect more when the event surface and the client tree compile. |
+| **R14** | **`new ItemStack(...)` during mod init is illegal on 26.1** - item data components are bound lazily by `DataComponentInitializers`, with the reloadable server resources | ~~unknown~~ **CLOSED (W3)** | It was a hard `runServer` crash, inherited from W2 (`Components not bound yet`). Creative-tab contents are now built lazily in `buildDisplayItems`. §9.4 - audit any other eager `ItemStack` in a registration path. |
+| **R15** | **Fabric client entrypoint ordering** - our `ClientModInitializer` can run before AE2's, i.e. before our own payload types/menus exist | ~~unknown~~ **MITIGATED (W3)** | Hit immediately on the first `runClient`. `FabricClientBootstrap` rendezvous; §9.5. Same root cause as R12 - the durable fix is an AE2-fork addon entrypoint. |
 | R7 | EMI has no 26.1 Fabric artifact | low | drop the EMI plugin from the Fabric jar (W6) |
 | R8 | REI entrypoint-timing crash (empty-ctor rule) | low | known + documented; AE2 fork hit and fixed it |
-| R9 | AW field-widening flakiness (`ItemEntity.target`) | low | `@Accessor` mixin fallback already noted in the AW file |
-| R10 | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | move it to the common list on Fabric; report upstream |
+| ~~R9~~ | AW field-widening flakiness (`ItemEntity.target`) | ~~low~~ **MOOT** | W3's `ItemEntityMixin` `@Shadow`s the field instead of relying on the AW; the AW line is kept only as a faithful AT translation. |
+| R10 | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | ✅ common list on Fabric, confirmed applying on a dedicated server (§9.3). **Still to report upstream.** |
 | R11 | No automated tests anywhere in this repo | medium | W7: crib AE2's Fabric gametest runner; at minimum place/spawn-and-tick every registered item + a recipe-presence test (playbook rules #6, #8) |
 
 ---
@@ -568,3 +573,171 @@ The §4 plan for W3 stands. Amendments from W2:
 3. Move `ServerGamePacketListenerImplMixin` to the common list (R10) — already the case in the Fabric config, which
    has an empty `client` list.
 4. W6, not W3: the recipe-viewer plugins are excluded as a package (`recipeviewer/**`), EMI included (R7).
+
+---
+
+## 9. W3 — event surface + client layer (landed 2026-07-29)
+
+W3 absorbed the planned W5 (client), because the two are the same seam: the client entrypoint and the
+`GuiMixin`/`MouseHandlerMixin` all need the same loader-neutral home for `AE2wtlibClient`'s bodies.
+
+### 9.1 The event mapping table (R3 answered)
+
+Nine NeoForge listeners lived on `AE2wtlibForge`/`AE2wtlibClient`. **Rule applied: semantic fidelity beats callback
+convenience.** A fabric-api callback was chosen only where it reproduces *both* the priority and the cancellation
+semantics; everywhere else a javap-verified mixin, injected at the instruction where NeoForge fires its own event.
+
+| # | NeoForge event | Fabric path | Why |
+|---|---|---|---|
+| 1 | `PlayerInteractEvent.RightClickBlock` (LOWEST, skip if `isCanceled`) | **callback** — `UseBlockCallback` registered in a custom **late phase** (`ae2wtlib:restock_last`), ordered after `Event.DEFAULT_PHASE` | Exact match on both properties. Phases are a property of the singleton `Event`, so the ordering binds **all** mods = `EventPriority.LOWEST`; fabric-api's array-backed invoker stops at the first non-`PASS` return, so a cancelled interaction never reaches a late listener = `isCanceled()`. A mixin could reproduce **neither** (it sees no other mod's handlers). Bonus: fabric-api fires it from `@Inject(HEAD)` on `ServerPlayerGameMode#useItemOn` — the very method NeoForge fires `RightClickBlock` from (offset 41). |
+| 2 | `PlayerInteractEvent.EntityInteractSpecific` (LOWEST, skip if `isCanceled`) | **callback** — `UseEntityCallback`, same late phase | Same reasoning. fabric-api fires it from `ServerGamePacketListenerImpl#handleInteract`, exactly where NeoForge calls `CommonHooks.onInteractEntityAt`. ⚠ **MC 26.1 merged NeoForge's two entity-interact events at the vanilla level**: `Entity#interactAt` no longer exists and `ServerboundInteractPacket` is a flat record with a single `interactOn` path — so there is one callback and no `hitResult`-based disambiguation is needed. |
+| 3 | `LivingEntityUseItemEvent.Finish` | **mixin** — `LivingEntityMixin`, `@WrapOperation` on the `ItemStack#finishUsingItem` INVOKE inside `LivingEntity#completeUsingItem` | fabric-api has no such event, and the NeoForge one is *result-rewriting* (`event.setResultStack`). `@WrapOperation` is the only shape that gives both the pre-call copy and a settable result — which is literally NeoForge's patch (`EventHooks.onItemUseFinish(this, copy, ticks, useItem.finishUsingItem(...))`). |
+| 4 | `ItemEntityPickupEvent.Pre` (LOWEST) — the magnet card | **mixin** — `ItemEntityMixin`, `@Inject(HEAD)` on `ItemEntity#playerTouch` | fabric-api has **no item-entity pickup event at all** (verified: zero classes matching `pickup`/`ItemEntity`; `PlayerPickItemEvents` is creative middle-click). HEAD is where NeoForge fires it (offset 26, before the pickup-delay/`target` checks and before `Inventory#add`); upstream's handler re-implements those two vanilla checks in its `canPickup().isDefault()` branch, which is the only reachable branch on Fabric. |
+| 5 | `ArrowNockEvent` | **mixin** — `BowItemMixin`, `@Inject(HEAD)` on `BowItem#use` | No fabric-api event; NeoForge patches the item itself (offset 33). `event.hasAmmo()` == `!player.getProjectile(bow).isEmpty()`, recomputed rather than captured, so no `@Local`. `BowItem` is the **only** class that fires `onArrowNock` in NeoForge 26.1.2.87. |
+| 6 | `ArrowLooseEvent` | **mixin** ×2 — `BowItemMixin` (`releaseUsing` HEAD, offset 66) + `CrossbowItemMixin` (`performShooting` HEAD, offset 36) | Same. ⚠ For the crossbow the fire site is `performShooting`, **not** `releaseUsing` (which only reports readiness), and NeoForge hard-codes `hasAmmo = true` there. |
+| 7 | `BuildCreativeModeTabContentsEvent` | **lazy generator** — `AE2wtlibCreativeTab#buildDisplayItems` fills the list on first use | See §9.4. W2's "just call it inline" answer was wrong. |
+| 8 | `ClientTickEvent.Post` | **callback** — `ClientTickEvents.END_CLIENT_TICK` | Exact counterpart; no ordering or cancellation involved. |
+| 9 | `InputEvent.MouseScrollingEvent` (cancellable) | **mixin** — `client/MouseHandlerMixin`, cancellable `@Inject` at the `LocalPlayer#isSpectator()` INVOKE in `MouseHandler#onScroll` | fabric-api has **no raw scroll event**. The only two scroll APIs are `ClientHotbarScrollEvents` (hotbar *slot change* only) and per-`Screen` `ScreenMouseEvents` — neither covers "shift+scroll with no screen open". |
+
+Server-side authority: every mutation is gated on `instanceof ServerPlayer`, matching upstream. Both fabric-api
+callbacks also fire client-side (fabric-api mirrors them onto `MultiPlayerGameMode` / `Minecraft#startUseItem`), so
+that guard is load-bearing for the pack's live MP server, not decoration.
+
+### 9.2 R4 — mixin descriptor verification (javap, both jars)
+
+Every target was checked against **both** `minecraft-merged-deobf-26.1.2.jar` (Fabric) and
+`build/moddev/artifacts/minecraft-patched-26.1.2.87.jar` (NeoForge). Result: **1 of the 2 `@Local` captures is a
+NeoForge-only fiction.**
+
+| Mixin | Target | Verdict |
+|---|---|---|
+| `ServerPlayerMixin` (shared) | `ServerPlayer#drop(Z)V`, `@Local(name = "selected")` | ❌ **FAILS on Fabric.** LVT: vanilla = `this, all, inventory, removed`; NeoForge = `this, all, inventory, **selected**, removed`. `selected` is created by a NeoForge patch. **And `removed` is not a substitute**: `Inventory#removeFromSelected` → `removeItem` → `ContainerHelper.removeItem` → `ItemStack#split`, which always returns a *copy* — `removed` is the stack handed to the dropped `ItemEntity`, while `selected` is the live inventory stack. Restocking `removed` would top up an item already flying through the air. → shared mixin **excluded from the Fabric source set**; `ServerPlayerDropMixin` reads `inventory.getSelectedItem()` at TAIL, which *is* NeoForge's `selected` (same object; both sides see `isEmpty()` when the slot empties). `drop(Z)V` has a single exit, so TAIL is unambiguous. |
+| `ServerGamePacketListenerImplMixin` (shared) | `ServerGamePacketListenerImpl#tryPickItem`, `@Local(name = "slotWithExistingItem")` | ✅ **present in vanilla** (slot 3, `I`, scope 32..101). The `send(Lnet/minecraft/network/protocol/Packet;)V` INVOKE is unique in the method (offset 87) and is inside that scope. Applies at runtime. |
+| `ServerPlayerGameModeMixin` (shared) | `ServerPlayerGameMode#useItemOn`, `@At("RETURN")` | ✅ identical `ACC_PUBLIC` descriptor on both loaders. ⚠ Its handler is `private **static**` while the target is an instance method — legal: `CallbackInjector.sanityCheck` calls `checkTargetModifiers(target, **false**)` (verified by javap on `sponge-mixin-0.17.3`), so only *non-static handler on static target* is rejected. |
+| `AEItemsMixin` (shared) | `AEItems#item(String,Identifier,Function)` | ✅ verified live in W2. |
+| `GuiMixin` (shared, client) | `Gui#extractSlot(...)` @ `GuiGraphicsExtractor#itemDecorations` | ✅ descriptor unchanged; applies at runtime. **The W2 build-script comment claiming it references `AE2wtlibClient` was wrong** — it only uses `CraftingTerminalHandler` + `ReadableNumberConverter`. Un-excluded and activated. |
+| `LivingEntityMixin` (Fabric) | `LivingEntity#completeUsingItem` @ `ItemStack#finishUsingItem` | ✅ exactly one call site (offset 69), same descriptor both loaders. |
+| `ItemEntityMixin` (Fabric) | `ItemEntity#playerTouch` HEAD | ✅. `target` is `private UUID` — **`@Shadow`ed rather than access-widened**, which sidesteps R9 entirely (the AW line is kept only as a faithful translation of the AT). |
+| `BowItemMixin` (Fabric) | `BowItem#use`, `#releaseUsing` HEAD | ✅ neither is overloaded. |
+| `CrossbowItemMixin` (Fabric) | `CrossbowItem#performShooting` HEAD | ✅ not overloaded. |
+| `client/MouseHandlerMixin` (Fabric) | `MouseHandler#onScroll(JDD)V` @ `LocalPlayer#isSpectator()` | ✅ `isSpectator()` is invoked **exactly once** in the method (offset 257) and is the instruction immediately after NeoForge's `ClientHooks.onMouseScroll` (offset 287). |
+
+**All eleven were confirmed APPLIED at runtime**, not merely compiled, by running both `runServer` and `runClient`
+with `JAVA_TOOL_OPTIONS=-Dmixin.debug.verbose=true` and grepping `Mixing … from ae2wtlib`. That is now the standard
+way to close R4-class risks in this repo — descriptor checking proves the target exists, only a verbose run proves
+the injection resolved.
+
+### 9.3 R10 — the upstream `ServerGamePacketListenerImplMixin` bug stands
+
+Upstream lists it under `"client"` although `ServerGamePacketListenerImpl` is a dedicated-server class, so pick-block
+restock is almost certainly dead on NeoForge dedicated servers. The Fabric config lists it under `"mixins"`; the
+runtime log confirms it applies on a dedicated server. **Still to report upstream.**
+
+### 9.4 ⚠⚠ The W3 headline: `new ItemStack(...)` is illegal during mod init on 26.1
+
+The dedicated-server gate failed with:
+
+```
+java.lang.NullPointerException: Components not bound yet
+  at net.minecraft.core.Holder$Reference.components(Holder.java:278)
+  at net.minecraft.world.item.ItemStack.<init>(ItemStack.java:266)
+  at de.mari_023.ae2wtlib.AE2wtlibCreativeTab.addTerminal(AE2wtlibCreativeTab.java:49)
+  at de.mari_023.ae2wtlib.AE2wtlib.addToCreativeTab(AE2wtlib.java:77)
+  at de.mari_023.ae2wtlib.fabric.AE2wtlibFabric.init(AE2wtlibFabric.java:93)
+```
+
+MC 26.1 binds item data components **lazily**: the only callers of `Holder.Reference#bindComponents` are
+`DataComponentInitializers`, which bakes them together with the reloadable server resources — long after mod init.
+So an `ItemStack` may not be constructed during registration **at all**, on either loader. W2's §8.5 note ("because
+the hook already runs at the end of ALL registration, `addToCreativeTab()` can simply be called directly") was
+wrong; NeoForge gets away with the same code only because `BuildCreativeModeTabContentsEvent` fires much later.
+
+**Fix:** `AE2wtlibCreativeTab#buildDisplayItems` now calls `AE2wtlib.addToCreativeTab()` itself before
+`output.acceptAll(items)`. The generator runs with an `ItemDisplayParameters`, i.e. strictly after the component
+bake — the same moment the NeoForge event fires. `registrationHappened()` makes it a no-op on NeoForge, so that
+build is unchanged. The tab's `.icon(...)` was already a `Supplier` and needed nothing.
+
+> **Generalises to every Fabric port on 26.1:** any eager `new ItemStack(...)` / `ItemStack.EMPTY`-adjacent work in a
+> registration path is a boot crash waiting to happen. Build display lists lazily.
+
+**Process lesson (recorded because it cost the wave a re-verification):** the W2 notes claimed a green
+`runServer`. Re-running the gate *from commit `e6947731` in a throwaway worktree* reproduced the crash — the claim
+had been written from an earlier state of the file. **Re-run a gate from the commit you are claiming it for.**
+
+### 9.5 The client layer
+
+- **`AE2wtlibClientEvents` (new, shared tree)** — the loader-neutral home for `clientTick()` and `mouseScroll()`.
+  `mouseScroll` now takes a `double scrollDeltaY` and *returns* whether to cancel, so both a NeoForge cancellable
+  event and a Fabric `CallbackInfo` can drive it. `AE2wtlibClient` keeps both method names as thin NeoForge
+  adapters, so `AE2wtlibForge`'s `@SubscribeEvent`s are untouched. ⚠ Like `GuiMixin`, this is a **client-only class
+  in the shared source set** — reachable only from client entry points and client mixins; `runServer` is the guard.
+- **Screens** — `FabricScreens` feeds `MenuScreens::register` to our AE2 fork's `InitScreens.MenuScreenRegistrar`
+  (the loader-neutral seam of §3.2), the same call AE2's own `AppEngFabricClient` makes. The five registrations and
+  their style paths are a verbatim copy of `NeoForgeScreens`. `MenuScreens#register` is `private static` in vanilla;
+  fabric-api widens it transitively, but the entry is declared in our own accesswidener too (same reasoning as
+  `Player#closeContainer`).
+- **Hotkeys — nothing to do.** AE2's `HotkeyActions.register` → `AppEng.instance().registerHotkey` →
+  `Hotkeys.registerHotkey` creates the `KeyMapping`, and AE2's Fabric client entrypoint registers every accumulated
+  mapping centrally via `KeyMappingHelper` (note: **`KeyBindingHelper` does not exist** in fabric-api 0.151 — the
+  class is `net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper`). The only constraint is ordering: our
+  `registerHotkeyActions()` must run before AE2's `Hotkeys.finalizeRegistration`, and it does — our init rides
+  `AppEngFabricMixin` at the TAIL of `AppEngFabric#init`, which AE2 calls from `onInitializeClient` *before* its own
+  `registerKeyMappings(...)`.
+- **Item models — nothing to do.** All five items use plain JSON item models: no `ItemModel` codec, no
+  `RangeSelectItemModelProperty`, no tint source, so there is no `*.ID_MAPPER::put` registration to mirror.
+- **⚠ New ordering trap — `FabricClientBootstrap` (the client-side half of §8.3).** The first `runClient` died with
+  `IllegalArgumentException: Cannot register handler as no payload type has been registered with name
+  "ae2wtlib:update_wut" for CLIENTBOUND PLAY`: our `ClientModInitializer` ran **before** AE2's, and our common init
+  (which registers the payload types) is driven from AE2's client entrypoint. Fabric Loader orders neither.
+  `FabricClientBootstrap` is a rendezvous — the client entrypoint hands its registration-dependent work over as a
+  `Runnable`, `AE2wtlibFabric.init()` signals completion, and whichever finishes last runs the block. It lives in
+  the **main** source set and names no client type, so the server path stays clean.
+  > This is the same class of bug as §8.3 and reinforces the same conclusion: **an AE2 addon on Fabric must not put
+  > order-sensitive work in an entrypoint at all.** The durable fix remains an `ae2:registration` /
+  > `ae2:client_registration` addon entrypoint in the AE2 fork.
+
+### 9.6 W3 gates (all green, 2026-07-29)
+
+| Gate | Result |
+|---|---|
+| `./gradlew :loader:fabric:build` | **GREEN** |
+| `./gradlew build spotlessCheck -PruntimeItemlistMod=none` (NeoForge harness) | **GREEN**, behaviour unchanged |
+| `./gradlew :loader:fabric:runServer` | **GREEN** — `Done (0.290s)!`, zero ERROR (only fabric's untranslated-item-tag dev WARN) |
+| `./gradlew :loader:fabric:runClient` | **GREEN** — boots to the title screen (panorama rendering), zero ERROR |
+| mixin application (`-Dmixin.debug.verbose=true`, both runs) | **11/11 applied**, incl. both `@Local` captures, `GuiMixin` and `client.MouseHandlerMixin` |
+
+Not covered by a headless gate and deferred to W7: actually *exercising* restock/magnet in-world, and a real-network
+multiplayer join (R5).
+
+### 9.7 Stub inventory after W3
+
+| | after W2 | after W3 |
+|---|---|---|
+| stub markers | 5 `W2-STUB` | **1** |
+
+The single remaining marker is `W2-STUB (W4)` in `AE2wtlibFabric.init()` — `RegisterCapabilitiesEvent` →
+`EnergyStorage.ITEM.registerForItems(...)`. Everything else is either done or a documented, wave-tagged deferral:
+
+- **W4** — seam #7 energy capability (the stub) and seam #8 `WrappedPlayerInventory` via
+  `appeng.fabric.transfer.FabricResources`. Crib confirmed: AE2's `appeng.fabric.transfer.PoweredItemEnergyStorage`
+  (`PoweredItemEnergyStorage(ContainerItemContext, Item, IAEItemPowerStorage)`), registered exactly as
+  `appeng.fabric.init.InitApiLookup#registerPowerStorageItem` does it. `team_reborn_energy` is already on the
+  runtime classpath via AE2.
+- **W6** — `recipeviewer/**` is excluded as a package (JEI `jei_mod_plugin` + REI `rei_common`/`rei_client`
+  entrypoints; EMI dropped, R7); Curios→Trinkets stays out of scope (§5, it is an AE2-fork follow-up).
+- **W7 polish** — `IConfigScreenFactory` has no in-tree Fabric equivalent (ModMenu is the usual host).
+
+### 9.8 Smaller decisions worth remembering
+
+- `ae2wtlib.fabric.mixins.json` was bumped `JAVA_21` → `JAVA_25`. The shared mixins compile to class version 69 on
+  the Fabric side, which produced `Class version 69 required is higher than the class version supported by the
+  current version of Mixin (JAVA_21 supports class version 65)`. The NeoForge copy of the config keeps upstream's
+  `JAVA_21` (its classes are compiled for NeoForge's own target).
+- The Fabric-only mixins live in `ae2wtlib.fabric.platform.mixins.json` (package
+  `de.mari_023.ae2wtlib.fabric.mixin`), client ones under `client.` in its `client` list. The **shared** package
+  keeps its own config so the two trees stay independently reviewable.
+- `Ae2wtlibFabricEvents.LAST_PHASE` is `AE2wtlibAPI.id("restock_last")`. Note fabric-api's phase API is typed to
+  `net.minecraft.resources.Identifier` on 26.1 (not `ResourceLocation`).
+- Other fabric-api 26.1 renames found during recon and worth knowing for the next port:
+  `ItemGroupEvents`/`FabricItemGroupEntries` → `net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents` /
+  `FabricCreativeModeTabOutput`; `KeyBindingHelper` → `KeyMappingHelper`.

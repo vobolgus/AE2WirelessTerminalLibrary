@@ -109,6 +109,11 @@ public class AE2wtlibFabric implements ModInitializer {
 
         // W2-STUB (W4): RegisterCapabilitiesEvent -> EnergyStorage.ITEM.registerForItems(...) with AE2's
         // appeng.fabric.transfer.PoweredItemEnergyStorage for the 3 powered terminals.
+
+        // 7. Release the client wiring that had to wait for the registrations above (S2C receivers, screens).
+        // No-op on a dedicated server - nothing ever supplies the Runnable there.
+        FabricClientBootstrap.onCommonInitDone();
+
         LOG.info("AE2wtlib Fabric platform layer initialized (W3: event surface).");
     }
 

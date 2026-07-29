@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import de.mari_023.ae2wtlib.AE2wtlibClientConfig;
 import de.mari_023.ae2wtlib.AE2wtlibClientEvents;
 import de.mari_023.ae2wtlib.fabric.AE2wtlibFabric;
+import de.mari_023.ae2wtlib.fabric.FabricClientBootstrap;
 import de.mari_023.ae2wtlib.fabric.config.FabricConfigStore;
 import de.mari_023.ae2wtlib.fabric.network.FabricNet;
 import de.mari_023.ae2wtlib.networking.RestockAmountPacket;
@@ -34,19 +35,28 @@ public class AE2wtlibFabricClient implements ClientModInitializer {
         // ClientPlayNetworking is client-only, so the serverbound sender is injected rather than referenced.
         FabricNet.setClientPacketSender(ClientPlayNetworking::send);
 
-        ClientPlayNetworking.registerGlobalReceiver(UpdateWUTPackage.ID,
-                (payload, context) -> context.client().execute(() -> payload.processPacketData(context.player())));
-        ClientPlayNetworking.registerGlobalReceiver(UpdateRestockPacket.ID,
-                (payload, context) -> context.client().execute(() -> payload.processPacketData(context.player())));
-        ClientPlayNetworking.registerGlobalReceiver(RestockAmountPacket.ID,
-                (payload, context) -> context.client().execute(() -> payload.processPacketData(context.player())));
-
-        // NeoForge: AE2wtlib.registerScreens via RegisterMenuScreensEvent (NeoForgeScreens). Order-independent -
-        // it only needs this mod's MenuTypes, which are static fields, and AE2's style loading is lazy.
-        FabricScreens.registerScreens();
-
         // NeoForge: ClientTickEvent.Post. Exact fabric-api counterpart; no ordering or cancellation involved.
         ClientTickEvents.END_CLIENT_TICK.register(_ -> AE2wtlibClientEvents.clientTick());
+
+        // ⚠ Everything below depends on AE2wtlibFabric.init() having run (payload TYPES, MenuTypes, AE2 itself), and
+        // Fabric Loader gives NO ordering guarantee between this entrypoint and AE2's - which is what drives our
+        // common init. The first W3 runClient proved it: registering the S2C receivers here died with
+        // "no payload type has been registered with name ae2wtlib:update_wut". FabricClientBootstrap runs the block
+        // as soon as BOTH sides are ready, whichever finishes last.
+        FabricClientBootstrap.deferUntilRegistered(() -> {
+            ClientPlayNetworking.registerGlobalReceiver(UpdateWUTPackage.ID,
+                    (payload, context) -> context.client()
+                            .execute(() -> payload.processPacketData(context.player())));
+            ClientPlayNetworking.registerGlobalReceiver(UpdateRestockPacket.ID,
+                    (payload, context) -> context.client()
+                            .execute(() -> payload.processPacketData(context.player())));
+            ClientPlayNetworking.registerGlobalReceiver(RestockAmountPacket.ID,
+                    (payload, context) -> context.client()
+                            .execute(() -> payload.processPacketData(context.player())));
+
+            // NeoForge: AE2wtlib.registerScreens via RegisterMenuScreensEvent (NeoForgeScreens).
+            FabricScreens.registerScreens();
+        });
 
         // NeoForge: InputEvent.MouseScrollingEvent. fabric-api has NO raw scroll event, so this one is a cancellable
         // mixin instead - de.mari_023.ae2wtlib.fabric.mixin.client.MouseHandlerMixin (see its javadoc for the
