@@ -16,7 +16,7 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 | Wave | Scope | State |
 |---|---|---|
 | **W1** | recon + dual-loader skeleton | ✅ **DONE** (this document + `loader/fabric`) |
-| W2 | foundation seams (registration, config, network, components) | ▫ next |
+| **W2** | foundation seams (registration, config, network, components) | ✅ **DONE** 2026-07-29 — see §8 |
 | W3 | events + mixins (the NeoForge event surface) | ▫ |
 | W4 | capabilities / transfer (energy + inventories) | ▫ |
 | W5 | client: screens, GUI, hotkeys, scroll input | ▫ |
@@ -26,6 +26,17 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 **W1 gates (both green, 2026-07-29):**
 - `./gradlew assemble -PruntimeItemlistMod=none` (NeoForge, root + `:ae2wtlib_api`) — **GREEN**, unchanged behaviour.
 - `./gradlew :loader:fabric:build` — **GREEN** (skeleton; shared sources still gated off).
+
+**W2 gates (all green, 2026-07-29):**
+- `./gradlew build spotlessCheck -PruntimeItemlistMod=none` — NeoForge **GREEN**, behaviour unchanged.
+- `./gradlew assemble -Pae2wtlib.skipFabric=true` (NeoForge-only CI job) — **GREEN**.
+- `./gradlew :loader:fabric:build` — **GREEN** with the whole shared tree compiled, minus the W3 event surface
+  and the W6 recipe-viewer plugins. ⚠ The `-Pae2wtlib.fabric.api/shared` switches now **default to `true`**:
+  the platform layer references the shared trees, so a build with them off no longer compiles.
+- **Bonus — the W4 gate came free:** `./gradlew :loader:fabric:runServer` boots a dedicated server clean
+  (`Done (4.584s)!`, zero ERROR beyond a missing `server.properties` on first run). That exercises item
+  registration, data components, the config store, menus, recipes, hotkeys, the creative tab, grid linkables,
+  upgrades and payload-type registration — and proves **R6** (see §8.3).
 
 ---
 
@@ -107,7 +118,11 @@ Only **19 of 103 files** import `net.neoforged.*`. With the shared trees compile
 (`-Pae2wtlib.fabric.api=true -Pae2wtlib.fabric.shared=true`) javac reports errors in exactly **21 files**
 (the 19 + the JEI and EMI plugins, which just lack their artifacts): **82 of 103 files compile clean today.**
 
-The coupling groups into 9 seams:
+The coupling groups into 9 seams — **plus a tenth found in W2** (`Ae2wtlibItemHooks`, §8.2), which this
+import-based scan structurally could not see: NeoForge patches its extension methods straight into vanilla
+classes, so a call like `stack.canEquip(...)` carries no `net.neoforged.*` import. **Lesson for the next
+dual-loader port: the import scan gives a floor, not the true surface — the real number only appears when the
+shared tree first compiles against the Fabric classpath.**
 
 | # | Seam | Files | NeoForge mechanism | Fabric answer |
 |---|---|---|---|---|
@@ -201,10 +216,14 @@ with `include()` (jar-in-jar).
   task, and no root/`buildSrc` convention applies one. Only GuideME's Fabric module publishes
   (`org.appliedenergistics:guideme-fabric`, already in mavenLocal at `26.1.10-alpha` and `26.1.12-beta`).
 
-**W1 workaround (in place):** the production jar `~/IdeaProjects/Applied-Energistics-2/dist/appliedenergistics2-fabric-26.1.10-beta.jar`
+**RESOLVED 2026-07-29 (before W2):** the AE2 fork's `:fabric` module now publishes properly — mavenLocal holds
+`org.appliedenergistics:appliedenergistics2-fabric:26.1.10-beta` with a real POM, Gradle `.module` metadata and
+sources/javadoc jars. The W1 hand-installed POM is superseded. Re-run `./gradlew :fabric:publishToMavenLocal` in
+the AE2 fork after every rebase and bump `ae2Version` here in lock-step. (R2 closed.)
+
+*Historic — the W1 workaround:* the production jar `…/Applied-Energistics-2/dist/appliedenergistics2-fabric-26.1.10-beta.jar`
 was hand-installed into `~/.m2/repository/org/appliedenergistics/appliedenergistics2-fabric/26.1.10-beta/`
-together with a minimal POM, so `loader/fabric` consumes proper maven coordinates and loom sees a normal
-module dependency (and applies AE2's transitive access widener).
+together with a minimal POM.
 
 **Durable fix (recommended, needs a change in the AE2 fork — deliberately NOT made from this port's session):**
 add to `Applied-Energistics-2/loader/fabric/build.gradle.kts`
@@ -354,12 +373,14 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 
 | # | Risk | Severity | Mitigation / current read |
 |---|---|---|---|
-| R1 | **`ItemDefinition` ctor + `AEItems.DR` divergence** between upstream AE2 (`:neoforge`) and our fork (`:fabric`) forces a per-loader item-registration factory | **high** (touches the mod's registration core) | seam #1 in W2; fallback = publish the fork's `:neoforge` jar to mavenLocal and compile both loaders against the fork (costs the upstream-rebase regression signal) |
-| R2 | **AE2 Fabric jar is hand-installed in mavenLocal** — no reproducible publish, silently stale after an AE2 rebase | **high** (build reproducibility) | §3.1: add `maven-publish` to the AE2 fork's `:fabric`; until then re-copy after every AE2 rebuild and keep `ae2Version` in lock-step |
+| R1 | **`ItemDefinition` ctor + `AEItems.DR` divergence** between upstream AE2 (`:neoforge`) and our fork (`:fabric`) forces a per-loader item-registration factory | ~~high~~ **CLOSED** (W2) | seam #1 landed; 3 of 11 predicted divergences bit, all in already-coupled files (§8.4). Fallback not needed. |
+| R2 | **AE2 Fabric jar is hand-installed in mavenLocal** — no reproducible publish, silently stale after an AE2 rebase | ~~high~~ **CLOSED** | the AE2 fork now publishes `org.appliedenergistics:appliedenergistics2-fabric:26.1.10-beta` to mavenLocal properly (POM + `.module` + sources/javadoc). Re-run `:fabric:publishToMavenLocal` after every AE2 rebase and keep `ae2Version` in lock-step. |
 | R3 | **Restock is the feature, and it is 100% event-driven** — 6 NeoForge events with priority semantics (`EventPriority.LOWEST`, `event.isCanceled()`) that Fabric callbacks do not reproduce | **high** | W3: prefer TAIL/RETURN mixins over fabric-api callbacks where ordering matters; verify in-world, not just headless |
 | R4 | `@Local(name=…)` in two mixins (`selected`, `slotWithExistingItem`) | medium | javap/`--debug` verify against the merged jar before W3; unobfuscated 26.1 keeps parameter names but locals can still drift |
 | R5 | **Multiplayer packet desync** — 6 payloads, one enum codec, item stacks | medium | playbook Part 10; format-pinning tests + a real-network join in W7. Singleplayer and gametests will NOT catch it |
-| R6 | `AEItemsMixin` replaces an **AE2-owned item class** — if AE2's Fabric registration path constructs items differently, the swap may not take | medium | signature verified identical by javap; but AE2's fork changed *how* items are registered (`AEItemEntry`) — test that `AEItems.WIRELESS_CRAFTING_TERMINAL instanceof ItemWCT` early in W2 |
+| R6 | `AEItemsMixin` replaces an **AE2-owned item class** — if AE2's Fabric registration path constructs items differently, the swap may not take | ~~medium~~ **CLOSED** (W2) | verified **live**: the swap takes against the fork's `AEItemEntry` path. Asserted at init by `AE2wtlibFabric.verifyWirelessCraftingTerminalSwap()`, and a dedicated server boots past it (§8.3). |
+| **R12** | **Fabric Loader does not order entrypoints by mod dependency**, and AE2 registers content from a different entrypoint per dist → wrong item raw ids on one side = silent MP corruption | ~~critical~~ **MITIGATED** (W2) | registration is driven from a TAIL mixin on `AppEngFabric#init` (§8.3). ⚠ `AppEngFabric` exists only in our AE2 fork — **re-verify the target on every AE2 rebase**. Durable fix = an `ae2:registration` addon entrypoint in the AE2 fork. |
+| **R13** | **NeoForge extension-method surface** was invisible to the W1 import scan; more may still be hiding in the W3/W5 files | medium | 3 found and sealed behind `Ae2wtlibItemHooks` (§8.2); one carries a real behaviour gap (`PreventRemoteMovement`). Expect more when the event surface and the client tree compile. |
 | R7 | EMI has no 26.1 Fabric artifact | low | drop the EMI plugin from the Fabric jar (W6) |
 | R8 | REI entrypoint-timing crash (empty-ctor rule) | low | known + documented; AE2 fork hit and fixed it |
 | R9 | AW field-widening flakiness (`ItemEntity.target`) | low | `@Accessor` mixin fallback already noted in the AW file |
@@ -378,20 +399,172 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 25 2>/dev/null \
 ./gradlew assemble -PruntimeItemlistMod=none
 ./gradlew spotlessCheck -PruntimeItemlistMod=none
 
-# Fabric
+# Fabric (from W2 the shared trees are ON by default - the flags are optional/legacy)
 ./gradlew :loader:fabric:build
-./gradlew :loader:fabric:build -Pae2wtlib.fabric.api=true -Pae2wtlib.fabric.shared=true   # from W2 on
-./gradlew :loader:fabric:runServer      # W4 gate
+./gradlew :loader:fabric:runServer      # W4 gate - already GREEN as of W2
 ./gradlew :loader:fabric:runClient      # W5 gate
 
 # NeoForge-only CI job (loom resolves at configuration time)
 ./gradlew assemble -Pae2wtlib.skipFabric=true
 
-# The W1 todo list
-grep -rn "W1-STUB" loader/fabric
+# The todo list
+grep -rn "W2-STUB" loader/fabric
 ```
 
 Binary truth:
 `javap -classpath ~/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft/minecraft-merged-deobf/26.1.2/minecraft-merged-deobf-26.1.2.jar <fqcn>`
 AE2 fork jar: `~/IdeaProjects/Applied-Energistics-2/dist/appliedenergistics2-fabric-26.1.10-beta.jar`
 Upstream AE2 jar: `~/.gradle/caches/modules-2/files-2.1/org.appliedenergistics/appliedenergistics2/26.1.10-beta/*/appliedenergistics2-26.1.10-beta.jar`
+
+---
+
+## 8. W2 — foundation seams (landed 2026-07-29)
+
+### 8.1 Seam map — what mapped to what
+
+Every seam follows the same shape, cribbed from AE2's `appeng.core.network.NetworkAdapter`: a loader-neutral
+interface in the shared tree with a static `get()` / `init(impl)` and a private `Holder`. The NeoForge halves live in
+**`src/main/java/de/mari_023/ae2wtlib/neoforge/`** (excluded from the Fabric source set — see the `java.exclude`
+block in `loader/fabric/build.gradle.kts`); the Fabric halves in `loader/fabric/src/main/java/.../fabric/`.
+
+| # | Seam | Upstream shape | Shared seam | NeoForge impl | Fabric impl | Crib |
+|---|---|---|---|---|---|---|
+| 4 | enum stream codecs | `NeoForgeStreamCodecs.enumCodec(C)` ×4 | `api.EnumStreamCodec.of(C)` | *(same class — both loaders use it)* | *(same)* | `javap` on `NeoForgeStreamCodecs$3` |
+| 5 | data components | `AE2wtlibComponents.DR` (`HashMap`) flushed by the API `@Mod` | `api.AE2wtlibAPIRegistration.register()`; `DR` → **`LinkedHashMap`** | `AE2wtlibAPIEntrypoint` (unchanged, now delegating) | called inline from `AE2wtlibFabric.init()` | — |
+| 1 | item registration | `DeferredRegister.Items` + `new ItemDefinition<>(name, DeferredItem)` | `registration.Ae2wtlibItemFactory` | `NeoForgeItemFactory` (identical to upstream) | `FabricItemFactory`: `AERegistries.registerItem` → `entry.create()` → `Registry.register` → `entry.bind(...)` | AE2 `FabricRegistrar` |
+| 2 | config | `ModConfigSpec` + `modContainer.registerConfig` | `config.Ae2wtlibConfigStore` (+`AE2wtlibConfig/ClientConfig.register(store)`) | `NeoForgeConfigStore` (thin `ModConfigSpec.Builder` adapter — TOML byte-identical) | `fabric.config.FabricConfigStore` (night-config 3.8.3, JiJ'd) | AE2 `ConfigStore`/`FabricConfigStore` |
+| 6 | attachments | `AttachmentType` + `player.getData(CT_HANDLER)` | `attachment.Ae2wtlibAttachments` | `NeoForgeAttachments` (the `ct_handler` `DeferredRegister`, moved verbatim) | `FabricAttachments` — synchronized `WeakHashMap` (attachment is transient + per-entity, so this is faithful) | AE2 `FabricPlayerCtrlAttachment` |
+| 3 | networking | `PacketDistributor` / `ClientPacketDistributor` | `api.Ae2wtlibNet` (typed to `CustomPacketPayload` — it must also carry AE2's `HotkeyPacket`, and it lives in the API module which sits *below* the mod module) | `NeoForgeNet` | `FabricNet` + `FabricNetworkInit`; the C2S sender is injected by the client entrypoint | AE2 `NetworkAdapter`/`FabricNetworkAdapter` |
+| 9 | lifecycle (partial) | `ModList.get().isLoaded` | `api.Ae2wtlibPlatform` (a `Predicate<String>` holder — it must answer inside `AE2wtlibAPIImpl`'s static initializer) | `ModList.get()::isLoaded` | `FabricLoader…::isModLoaded` | — |
+| 8 | item transfer (compile half) | `WrappedPlayerInventory` `record` overriding `toResourceHandler()` | class made **abstract** + `WrappedPlayerInventory.of(...)` factory hook | `NeoForgeWrappedPlayerInventory` re-adds the override | `FabricWrappedPlayerInventory` (empty) | §3.2 |
+| — | screens (compile half) | `AE2wtlib.registerScreens(RegisterMenuScreensEvent)` | moved out of the shared `AE2wtlib` class | `NeoForgeScreens` | **W5** | §3.2 |
+| **10** | **NeoForge extension methods** | see §8.2 | `Ae2wtlibItemHooks` | `NeoForgeItemHooks` | `FabricItemHooks` | — |
+
+Two things deliberately did **not** need a seam:
+- `CreativeModeTab.builder()` → the vanilla overload `CreativeModeTab.builder(CreativeModeTab.Row.TOP, 0)`, which is
+  exactly what NeoForge's no-arg builder delegates to (same crib AE2's `MainCreativeTab` used).
+- `Player#closeContainer()` → protected in vanilla, public on NeoForge; one `accessible method` line in our
+  accesswidener. (AE2's AW already carries it and loom applies dependency AWs transitively, but relying on another
+  mod's AW is fragile, so it is declared here too.)
+
+### 8.2 ⚠ Seam group 10 — NeoForge extension methods (not in the W1 inventory)
+
+Three call sites in the shared tree use methods NeoForge **patches into vanilla classes**, so they carry no
+`net.neoforged.*` import and the W1 import scan could not find them. They only surfaced when the shared tree first
+compiled against the Fabric classpath. All three now sit behind `Ae2wtlibItemHooks`:
+
+| Call site | NeoForge extension | Fabric answer | Parity |
+|---|---|---|---|
+| `StowHotkeyAction` | `ItemStack#isNotReplaceableByPickAction(Player,int)` | `false` | exact for vanilla items (that is NeoForge's default) |
+| `ArmorSlot#mayPlace` | `ItemStack#canEquip(EquipmentSlot,Entity)` | `player.getEquipmentSlotForItem(stack) == slot` | exact — that *is* NeoForge's default impl |
+| `MagnetHandler` | `ItemEntity#getPersistentData().contains("PreventRemoteMovement")` | `false` | ⚠ **behaviour gap**: Fabric has no per-entity persistent NBT, so nothing can opt out of the magnet card there. Interop nicety, not a feature of this mod. |
+
+### 8.3 ⚠⚠ The W2 headline: Fabric Loader does **not** order entrypoints by mod dependency
+
+The first `runServer` crashed in `AE2wtlibItems.<clinit>` with
+`NullPointerException: … appeng.core.AEConfig.instance() is null`. The `debug.log` entrypoint-registration dump is
+conclusive: `de.mari_023.ae2wtlib.fabric.AE2wtlibFabric` was registered (and therefore invoked) **before**
+`appeng.fabric.AppEngFabric`, despite `"depends": {"ae2": "*"}` in our `fabric.mod.json`.
+
+Three independent reasons AE2WTLib must run strictly after AE2:
+
+1. `ItemWT`'s constructor reads `AEConfig.instance().getWirelessTerminalBattery()` — null until AE2's
+   `FabricConfigStore.initConfigs()` ran. *(This is the crash.)*
+2. `AEItems.WIRELESS_CRAFTING_TERMINAL` must be bound and `AEItemsMixin`'s swap must have happened before this mod
+   builds its terminals.
+3. **Part 10 / raw ids.** AE2 registers all of its content from `AppEngFabric.init(base)`, which it calls from its
+   `main` entrypoint on a dedicated server but from its ***client*** entrypoint on a client (`AppEngFabric.onInitialize`
+   is a no-op there — the dist-specific `AppEngClient` has to exist first). Fabric runs every `main` entrypoint before
+   any `client` entrypoint, so even a *correct* entrypoint order would place this mod's items **before** AE2's on a
+   client and **after** them on a dedicated server → different item raw ids on the two sides → silent MP `ItemStack`
+   corruption that singleplayer can never reproduce.
+
+**Fix:** `de.mari_023.ae2wtlib.fabric.mixin.AppEngFabricMixin` injects at the **TAIL of
+`appeng.fabric.AppEngFabric#init(Lappeng/core/AppEngBase;)V`** and calls `AE2wtlibFabric.init()` (idempotent guard).
+That pins all three at once — AE2 is fully registered, and the call rides whatever dist-appropriate entrypoint AE2
+itself chose, so both sides see the identical order "AE2 content, then AE2WTLib content". The `main`/`client`
+entrypoints remain declared; the client one now carries only order-independent wiring (client config, the C2S sender
+injection, the three S2C receivers).
+
+> **This generalises to every future AE2 addon on Fabric** — the dual-loader recipe should not put addon registration
+> in a `ModInitializer` at all. The durable fix is an **`ae2:registration` addon entrypoint in the AE2 fork**
+> (it already has a client-only, internal `ae2:client_registration`), invoked at the end of `AppEngFabric.init`;
+> switching to it here is then a one-line change. Filed as a follow-up on the AE2 fork.
+>
+> ⚠ `AppEngFabric` exists **only in our fork** — re-verify this mixin target on every AE2 rebase.
+
+**R6 is answered:** `AE2wtlibFabric.verifyWirelessCraftingTerminalSwap()` asserts at init that
+`AEItems.WIRELESS_CRAFTING_TERMINAL.asItem() instanceof ItemWCT` and throws otherwise. The dedicated server boots
+past it, so `AEItemsMixin` **does** take against our fork's `AEItemEntry`-based registration path.
+
+### 8.4 R1 — the AE2 API divergences actually hit
+
+| §3.2 row | Hit? | Resolution |
+|---|---|---|
+| `ItemDefinition` ctor (`DeferredItem` vs `AEItemEntry`) | ✅ yes, as predicted | seam #1. `AEItemEntry`'s ctor is package-private, so the Fabric side must go through the public `AERegistries.registerItem(id, factory)` and then create/register/bind itself. Appending to AE2's pending list is harmless *only because AE2 has already flushed* — which §8.3's mixin now guarantees structurally. |
+| `AEItems`/`AEComponents` `DR` vs `init()` | ✖ not hit | AE2WTLib never touches AE2's own registers. |
+| `InitScreens.register(event, …)` vs `(MenuScreenRegistrar, …)` | ✅ yes | `registerScreens` moved out of the shared `AE2wtlib` class into `NeoForgeScreens`; Fabric twin in W5. |
+| `InternalInventory#toResourceHandler()` | ✅ yes, and **worse than predicted** — it is *abstract* upstream, so the shared class cannot simply drop it | `WrappedPlayerInventory` became abstract + a `factory` hook, with a concrete subclass per loader. |
+| `AEConfig.register(ModContainer)` vs `(ConfigStore, ConfigStore)` | ✖ not hit directly | AE2WTLib has its own config; but it means AE2's `ConfigStore` is *not* available on the NeoForge side, so seam #2 had to be a private copy rather than a reuse. |
+| `AEItemKey`, `ConfigMenuInventory`, `PoweredItemCapabilities`, `QuantumBridgeBlockEntity`… | ✖ not hit in W2 | `PoweredItemCapabilities` is W4. |
+
+**Net: 3 of the 11 predicted divergences bit, all inside files that were already NeoForge-coupled — the §3.2
+"costs nothing extra" prediction held.** No need for the R1 fallback (compiling both loaders against the fork).
+
+### 8.5 Stub inventory
+
+| | before W2 | after W2 |
+|---|---|---|
+| stub markers | ~25 `W1-STUB` in 2 files | **5 `W2-STUB`**, every one tagged with its wave |
+
+Remaining, verbatim:
+- `AE2wtlibFabric` — W3: the restock event surface (6 NeoForge events); W4: `RegisterCapabilitiesEvent` →
+  `EnergyStorage.ITEM.registerForItems(...)` with `appeng.fabric.transfer.PoweredItemEnergyStorage`.
+- `AE2wtlibFabricClient` — W5: screens via `InitScreens.MenuScreenRegistrar`; W3: `ClientTickEvent.Post` →
+  `ClientTickEvents.END_CLIENT_TICK`; W3: `InputEvent.MouseScrollingEvent` → cancellable `MouseHandler#onScroll` mixin.
+- Deferred by design (W7 polish): NeoForge's `IConfigScreenFactory` config screen — ModMenu is the usual Fabric host
+  and a config screen is not a parity requirement.
+
+`BuildCreativeModeTabContentsEvent` did **not** need a stub: because §8.3's hook already runs at the end of all
+registration, `AE2wtlib.addToCreativeTab()` is simply called directly.
+
+### 8.6 Mixin state after W2
+
+`fabric.mod.json` now declares three mixin configs. **Only what is verified is active** (playbook golden rule #1):
+
+| Config | Active | Waiting for W3 |
+|---|---|---|
+| `ae2wtlib.fabric.mixins.json` | `AEItemsMixin` (verified live, §8.3) | `ServerPlayerGameModeMixin`, `ServerPlayerMixin`, `ServerGamePacketListenerImplMixin` (compile, but their descriptors/`@Local` names are unverified — R4), `GuiMixin` (excluded from the source set: it references the still-excluded `AE2wtlibClient`) |
+| `ae2wtlib.fabric.platform.mixins.json` **(new)** | `AppEngFabricMixin` | — |
+| `ae2wtlib_api.fabric.mixins.json` | `WidgetContainerAccessor` | — |
+
+### 8.7 Smaller decisions worth remembering
+
+- **`AE2wtlibComponents.DR`: `HashMap` → `LinkedHashMap`.** Data component types are a *static* registry and
+  `ItemStack`'s stream codec addresses them by **raw registry id**, so their registration order is part of the network
+  contract. `HashMap` order is deterministic for a fixed key set, so this was not a live bug — but insertion order
+  makes the wire contract equal to the *source* order, which is reviewable. Hardening, not a fix.
+- **night-config 3.8.3** is `implementation` + `include` (JiJ) in `loader/fabric`. AE2's Fabric jar already nests the
+  same coordinates and loader de-duplicates by version; shipping our own avoids depending on another mod's nested
+  libraries.
+- `processResources` needed `duplicatesStrategy = EXCLUDE` — all three resource roots ship an `icon.png`, and
+  `loader/fabric`'s (the one `fabric.mod.json` points at) comes first.
+- `AE2wtlibItems.init()` / `AE2wtlibAdditionalComponents.init()` are empty class-load triggers (AE2's `AEItems.init()`
+  pattern). On NeoForge the class load used to be a side effect of `AE2wtlibItems.DR.register(modEventBus)`.
+- The seam implementations must be injected **before** anything class-loads `AE2wtlibItems` — its static initializer
+  builds every `ItemDefinition` through the factory. Both entrypoints therefore `init(...)` first, `AE2wtlibItems.init()`
+  second.
+
+### 8.8 W3 scope — confirmed, with amendments
+
+The §4 plan for W3 stands. Amendments from W2:
+
+1. **Un-exclude** `de/mari_023/ae2wtlib/AE2wtlibForge.java`, `AE2wtlibClient.java`? **No — the opposite.** Both stay
+   excluded permanently; they *are* the NeoForge overlay now. W3 only has to re-home their remaining bodies
+   (`AE2wtlibClient.clientTick()` / `mouseScroll(...)` need a loader-neutral home, since the Fabric client entrypoint
+   cannot see `AE2wtlibClient`) and un-exclude `mixin/GuiMixin.java` once that home exists.
+2. The 6 restock events, per §4 — plus **javap-verify every descriptor and `@Local` name first** (R4); the three
+   restock mixins compile today but are deliberately not listed in the Fabric mixin config.
+3. Move `ServerGamePacketListenerImplMixin` to the common list (R10) — already the case in the Fabric config, which
+   has an empty `client` list.
+4. W6, not W3: the recipe-viewer plugins are excluded as a package (`recipeviewer/**`), EMI included (R7).
