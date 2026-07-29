@@ -12,6 +12,7 @@ import appeng.menu.locator.MenuLocators;
 
 import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import de.mari_023.ae2wtlib.api.AE2wtlibComponents;
+import de.mari_023.ae2wtlib.api.Ae2wtlibAccessories;
 import de.mari_023.ae2wtlib.api.TextConstants;
 import de.mari_023.ae2wtlib.api.registration.WTDefinition;
 
@@ -127,14 +128,18 @@ public class WUTHandler {
     @Nullable
     public static ItemMenuHostLocator findTerminal(Player player, WTDefinition terminal) {
         ItemMenuHostLocator locator = null;
-        // FIXME reintroduce curio compat once the ae2 curio integration is updated to work properly
-        /*-
-        var cap = player.getCapability(CuriosIntegration.ITEM_HANDLER);
-        if (cap != null) {
-            for (int i = 0; i < cap.size(); i++) {
-                var stack = cap.getResource(i).toStack();
-                if (!hasTerminal(stack, terminal)) continue;
-        
+        // Accessory slots first, exactly as the original Curios block did (it is a full-inventory scan either way; a
+        // universal terminal short-circuits, a specialised one is only a fallback). The lookup is a seam: on Fabric
+        // it is AE2's Trinkets-backed view, on NeoForge nothing injects an implementation, so this reports "no
+        // accessory inventory" and the behaviour is byte-for-byte the disabled Curios support it replaces.
+        // FIXME (NeoForge only) reintroduce curio compat once the ae2 curio integration is updated to work properly
+        var accessories = Ae2wtlibAccessories.get(player);
+        if (accessories != null) {
+            for (int i = 0; i < accessories.size(); i++) {
+                var stack = accessories.getStack(i);
+                if (!hasTerminal(stack, terminal))
+                    continue;
+
                 if (AE2wtlibAPI.isUniversalTerminal(stack)) {
                     return MenuLocators.forCurioSlot(i);
                 } else if (locator == null) {
@@ -142,7 +147,6 @@ public class WUTHandler {
                 }
             }
         }
-        */
 
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             var stack = player.getInventory().getItem(i);

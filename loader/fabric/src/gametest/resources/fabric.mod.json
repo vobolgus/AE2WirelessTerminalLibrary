@@ -13,7 +13,8 @@
       "de.mari_023.ae2wtlib.fabric.gametest.RecipeTests",
       "de.mari_023.ae2wtlib.fabric.gametest.EnergyTests",
       "de.mari_023.ae2wtlib.fabric.gametest.NetworkCodecTests",
-      "de.mari_023.ae2wtlib.fabric.gametest.RestockTests"
+      "de.mari_023.ae2wtlib.fabric.gametest.RestockTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.AccessorySlotTests"
     ]
   },
   "depends": {
