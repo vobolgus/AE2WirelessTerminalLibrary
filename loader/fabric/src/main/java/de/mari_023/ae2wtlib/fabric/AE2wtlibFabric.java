@@ -88,9 +88,12 @@ public class AE2wtlibFabric implements ModInitializer {
         AE2wtlib.registerGridLinkables();
         AE2wtlib.registerUpgrades();
 
-        // NeoForge: BuildCreativeModeTabContentsEvent. We already run at the end of ALL registration, so the tab
-        // contents can be built directly (AE2wtlibCreativeTab guards against being filled twice anyway).
-        AE2wtlib.addToCreativeTab();
+        // NeoForge: BuildCreativeModeTabContentsEvent.
+        // ⚠ W3 correction to W2 (§8.5): this must NOT be called here. MC 26.1 binds item data components lazily -
+        // DataComponentInitializers bakes them together with the reloadable server resources, long after mod init -
+        // so building the tab's ItemStacks during registration throws "Components not bound yet" and the dedicated
+        // server never boots. AE2wtlibCreativeTab#buildDisplayItems now fills the list itself on first use, which is
+        // the moment the NeoForge event fires as well. Nothing to do here.
 
         // 5. Networking. Payload TYPES must be registered on both sides; the client receivers live in the client
         // entrypoint because ClientPlayNetworking is client-only.

@@ -64,6 +64,13 @@ public class AE2wtlibCreativeTab {
 
     private static synchronized void buildDisplayItems(CreativeModeTab.ItemDisplayParameters itemDisplayParameters,
             CreativeModeTab.Output output) {
+        // Self-heal if the tab is built before anything filled it. On NeoForge that never happens -
+        // BuildCreativeModeTabContentsEvent has already run and registrationHappened() makes this a no-op - but on
+        // Fabric it is the ONLY safe moment: MC 26.1 binds item data components lazily (DataComponentInitializers,
+        // baked with the reloadable server resources), so `new ItemStack(item)` during mod init throws
+        // "Components not bound yet". This generator runs with an ItemDisplayParameters, i.e. strictly after that
+        // bake - which is exactly when the NeoForge event fires too.
+        AE2wtlib.addToCreativeTab();
         output.acceptAll(items);
     }
 }
