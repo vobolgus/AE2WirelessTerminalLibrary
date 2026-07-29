@@ -102,6 +102,16 @@ base {
     archivesName = "ae2wtlib-fabric"
 }
 
+// ---------------------------------------------------------------------------
+// W7 - the gametest companion mod's source set. Created BEFORE the `loom` block because that block
+// references it eagerly (`mods { create("ae2wtlib_gametest") }` / `runs { create("gametest") }`).
+// It sees everything `main` sees, plus `main`'s own output.
+// ---------------------------------------------------------------------------
+val gametestSourceSet: SourceSet = sourceSets.create("gametest") {
+    compileClasspath += sourceSets["main"].compileClasspath + sourceSets["main"].output
+    runtimeClasspath += sourceSets["main"].runtimeClasspath + sourceSets["main"].output
+}
+
 loom {
     // NOTE: splitEnvironmentSourceSets() is deliberately NOT used yet. The shared tree mixes client
     // and server classes exactly like the NeoForge jar does (AE2wtlib.registerScreens, the Gui mixin,
@@ -110,6 +120,11 @@ loom {
     mods {
         create("ae2wtlib") {
             sourceSet(sourceSets["main"])
+        }
+        // W7: the gametest suite is a COMPANION MOD with its own fabric.mod.json, so the test classes never
+        // reach the release jar (`jar`/`remapJar` only see `main`). Same shape as the AE2 fork's harness.
+        create("ae2wtlib_gametest") {
+            sourceSet(gametestSourceSet)
         }
     }
 
@@ -121,6 +136,26 @@ loom {
         }
         named("server") {
             programArgs("nogui")
+        }
+        // W7 - multiplayer repro harness (playbook Part 10, R5). Singleplayer and gametests NEVER serialize
+        // packets over a socket, so a whole bug class (raw-id desync, codec mismatches) is invisible until a real
+        // TCP join. Usage:
+        //     QUICKPLAY_MP=localhost:25570 ./gradlew :loader:fabric:runClient
+        // against a dedicated server carrying the IDENTICAL modset (see PORTING_NOTES §12.2). QUICKPLAY_SP is the
+        // singleplayer twin, handy for the in-world checklist.
+        named("client") {
+            System.getenv("QUICKPLAY_MP")?.let { programArgs("--quickPlayMultiplayer", it) }
+            System.getenv("QUICKPLAY_SP")?.let { programArgs("--quickPlaySingleplayer", it) }
+        }
+        // W7 gametest suite:  ./gradlew :loader:fabric:runGametest
+        // fabric-api's MainMixin hijacks the dedicated-server main when `fabric-api.gametest` is set and boots a
+        // vanilla GameTestServer (auto-agrees the EULA, no port bound, exits non-zero on failure).
+        create("gametest") {
+            server()
+            name = "Game Test Server"
+            runDir = "build/gametest"
+            source(gametestSourceSet)
+            property("fabric-api.gametest", "true")
         }
     }
 }

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "ae2wtlib_gametest",
+  "version": "1.0.0",
+  "name": "AE2WTLib Game Tests",
+  "description": "Headless Fabric gametest suite for the AE2WTLib Fabric port. Dev-only companion mod - never shipped (it lives in its own source set, so `jar`/`remapJar` never see it).",
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "de.mari_023.ae2wtlib.fabric.gametest.RegistrationTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.ItemTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.RecipeTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.EnergyTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.NetworkCodecTests",
+      "de.mari_023.ae2wtlib.fabric.gametest.RestockTests"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-gametest-api-v1": "*",
+    "ae2": "*",
+    "ae2wtlib": "*"
+  }
+}
