@@ -145,8 +145,9 @@ sourceSets {
             exclude("de/mari_023/ae2wtlib/api/AE2wtlibAPIEntrypoint.java")
 
             // ---------------------------------------------------------------
-            // W3 - the NeoForge event surface. AE2wtlibForge/AE2wtlibClient are the @Mod classes; their bodies
-            // are re-homed into the two Fabric entrypoints + mixins in W3.
+            // The two NeoForge @Mod classes. PERMANENTLY excluded - they ARE the NeoForge overlay now.
+            // W3 re-homed their loader-neutral bodies into the shared AE2wtlibClientEvents plus the two Fabric
+            // entrypoints and the Fabric mixin package.
             // ---------------------------------------------------------------
             exclude("de/mari_023/ae2wtlib/AE2wtlibForge.java")
             exclude("de/mari_023/ae2wtlib/AE2wtlibClient.java")
@@ -157,10 +158,13 @@ sourceSets {
             exclude("de/mari_023/ae2wtlib/recipeviewer/**")
 
             // ---------------------------------------------------------------
-            // W3 - mixins whose targets reference still-excluded classes (GuiMixin -> AE2wtlibClient).
-            // The rest of the mixin package compiles; see ae2wtlib.fabric.mixins.json for what is ACTIVE.
+            // W3 (R4) - the one shared mixin that is genuinely NeoForge-only: ServerPlayerMixin captures
+            // @Local(name = "selected") out of ServerPlayer#drop(Z), a local that only exists in NeoForge's PATCHED
+            // vanilla (javap: vanilla has `removed` in slot 3 and no `selected` at all, and `removed` is the
+            // split-off copy handed to the dropped ItemEntity - semantically the wrong stack). The Fabric twin is
+            // de.mari_023.ae2wtlib.fabric.mixin.ServerPlayerDropMixin; see its javadoc.
             // ---------------------------------------------------------------
-            exclude("de/mari_023/ae2wtlib/mixin/GuiMixin.java")
+            exclude("de/mari_023/ae2wtlib/mixin/ServerPlayerMixin.java")
         }
         resources {
             // NeoForge metadata must never ship in the Fabric jar.

@@ -4,7 +4,15 @@
   "package": "de.mari_023.ae2wtlib.fabric.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "AppEngFabricMixin"
+    "AppEngFabricMixin",
+    "BowItemMixin",
+    "CrossbowItemMixin",
+    "ItemEntityMixin",
+    "LivingEntityMixin",
+    "ServerPlayerDropMixin"
+  ],
+  "client": [
+    "client.MouseHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

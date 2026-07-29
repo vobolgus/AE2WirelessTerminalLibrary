@@ -4,9 +4,12 @@
   "package": "de.mari_023.ae2wtlib.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "AEItemsMixin"
+    "AEItemsMixin",
+    "ServerGamePacketListenerImplMixin",
+    "ServerPlayerGameModeMixin"
   ],
   "client": [
+    "GuiMixin"
   ],
   "injectors": {
     "defaultRequire": 1

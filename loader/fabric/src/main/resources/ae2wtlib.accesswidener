@@ -18,9 +18,11 @@ mutable	field	net/minecraft/world/inventory/Slot	y	I
 
 # AT: public net.minecraft.world.entity.item.ItemEntity target
 #   javap: `private java.util.UUID target;` with a public setTarget() but NO getter.
-#   Read once, in the ItemEntityPickupEvent.Pre handler (AE2wtlibForge#handle).
-#   NOTE (playbook Part 2): AW FIELD-widening has proved flaky in this workspace - if this entry
-#   does not take effect, replace it with an @Accessor mixin on ItemEntity in the Fabric overlay.
+#   Read once, in the ItemEntityPickupEvent.Pre handler (AE2wtlibForge#handle) - a NeoForge-only file.
+#   ⚠ W3: the Fabric side does NOT rely on this entry. Its consumer,
+#   de.mari_023.ae2wtlib.fabric.mixin.ItemEntityMixin, @Shadow's the field instead, which sidesteps R9
+#   (AW field-widening has proved flaky in this workspace) entirely. The line is kept purely so this file
+#   stays a 1:1 translation of the two accesstransformer.cfg files - if it ever misbehaves, delete it.
 accessible	field	net/minecraft/world/entity/item/ItemEntity	target	Ljava/util/UUID;
 
 # NOT from an AT - surfaced when the shared tree first compiled on Fabric (W2).
@@ -28,3 +30,11 @@ accessible	field	net/minecraft/world/entity/item/ItemEntity	target	Ljava/util/UU
 # vanilla declares protected. AE2's own accesswidener already carries this entry and loom applies dependency AWs
 # transitively, but relying on another mod's AW is fragile - declare it here too (widening is idempotent).
 accessible	method	net/minecraft/world/entity/player/Player	closeContainer	()V
+
+# NOT from an AT - W3, the Fabric screen registration (de.mari_023.ae2wtlib.fabric.client.FabricScreens).
+# NeoForge patches MenuScreens#register to public for its RegisterMenuScreensEvent; vanilla declares it
+#   private static <M extends AbstractContainerMenu, U extends Screen & MenuAccess<M>> void register(
+#       MenuType<? extends M>, MenuScreens$ScreenConstructor<M, U>)   -> flags (0x000a) ACC_PRIVATE, ACC_STATIC
+# fabric-api widens it transitively (that is how AE2's own AppEngFabricClient calls MenuScreens::register), but
+# depending on another mod's AW is fragile - declare it here too (widening is idempotent).
+accessible	method	net/minecraft/client/gui/screens/MenuScreens	register	(Lnet/minecraft/world/inventory/MenuType;Lnet/minecraft/client/gui/screens/MenuScreens$ScreenConstructor;)V

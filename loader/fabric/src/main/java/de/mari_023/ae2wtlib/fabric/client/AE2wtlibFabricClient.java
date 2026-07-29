@@ -1,9 +1,11 @@
 package de.mari_023.ae2wtlib.fabric.client;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
 import de.mari_023.ae2wtlib.AE2wtlibClientConfig;
+import de.mari_023.ae2wtlib.AE2wtlibClientEvents;
 import de.mari_023.ae2wtlib.fabric.AE2wtlibFabric;
 import de.mari_023.ae2wtlib.fabric.config.FabricConfigStore;
 import de.mari_023.ae2wtlib.fabric.network.FabricNet;
@@ -39,11 +41,26 @@ public class AE2wtlibFabricClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(RestockAmountPacket.ID,
                 (payload, context) -> context.client().execute(() -> payload.processPacketData(context.player())));
 
-        // W2-STUB (W5): AE2wtlib.registerScreens -> InitScreens.register(InitScreens.MenuScreenRegistrar, ...)
-        // (our AE2 fork's loader-neutral seam; see NeoForgeScreens for the NeoForge half).
-        // W2-STUB (W3): ClientTickEvent.Post -> ClientTickEvents.END_CLIENT_TICK -> AE2wtlibClient.clientTick()
-        // W2-STUB (W3): InputEvent.MouseScrollingEvent -> cancellable mixin on MouseHandler#onScroll
-        // (fabric-api has no cancellable scroll event) -> AE2wtlibClient.mouseScroll(...)
+        // NeoForge: AE2wtlib.registerScreens via RegisterMenuScreensEvent (NeoForgeScreens). Order-independent -
+        // it only needs this mod's MenuTypes, which are static fields, and AE2's style loading is lazy.
+        FabricScreens.registerScreens();
+
+        // NeoForge: ClientTickEvent.Post. Exact fabric-api counterpart; no ordering or cancellation involved.
+        ClientTickEvents.END_CLIENT_TICK.register(_ -> AE2wtlibClientEvents.clientTick());
+
+        // NeoForge: InputEvent.MouseScrollingEvent. fabric-api has NO raw scroll event, so this one is a cancellable
+        // mixin instead - de.mari_023.ae2wtlib.fabric.mixin.client.MouseHandlerMixin (see its javadoc for the
+        // javap-verified injection point). Nothing to register here.
+        //
+        // Hotkeys/keybinds: nothing to do here either. AE2wtlib.registerHotkeyActions() (driven from the common
+        // init) goes through AE2's HotkeyActions -> Hotkeys.registerHotkey, and AE2's own client entrypoint then
+        // registers every accumulated KeyMapping centrally via KeyMappingHelper. Our registration rides
+        // AppEngFabricMixin at the TAIL of AppEngFabric#init, which on a client runs from AE2's
+        // onInitializeClient BEFORE its Hotkeys.finalizeRegistration - so the three ae2wtlib_* hotkeys are included.
+        //
+        // Item models/properties: none. All five items use plain JSON item models (no ItemModel codec, no
+        // RangeSelectItemModelProperty, no tint source), so there is no client-side model registration to mirror.
+        //
         // DEFERRED (W7 polish): IConfigScreenFactory has no in-tree Fabric equivalent; ModMenu is the usual host and
         // a config screen is not a parity requirement.
     }

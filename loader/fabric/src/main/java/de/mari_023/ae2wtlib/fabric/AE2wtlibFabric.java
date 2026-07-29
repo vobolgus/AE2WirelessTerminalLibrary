@@ -20,6 +20,7 @@ import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.api.Ae2wtlibPlatform;
 import de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments;
 import de.mari_023.ae2wtlib.fabric.config.FabricConfigStore;
+import de.mari_023.ae2wtlib.fabric.event.Ae2wtlibFabricEvents;
 import de.mari_023.ae2wtlib.fabric.network.FabricNet;
 import de.mari_023.ae2wtlib.fabric.network.FabricNetworkInit;
 import de.mari_023.ae2wtlib.registration.Ae2wtlibItemFactory;
@@ -98,12 +99,14 @@ public class AE2wtlibFabric implements ModInitializer {
 
         verifyWirelessCraftingTerminalSwap();
 
-        // W2-STUB (W3): the restock event surface - LivingEntityUseItemEvent.Finish,
-        // PlayerInteractEvent.RightClickBlock
-        // / EntityInteractSpecific, ItemEntityPickupEvent.Pre, ArrowNockEvent, ArrowLooseEvent.
+        // 6. The restock event surface (NeoForge: the @SubscribeEvent handlers on AE2wtlibForge). Only the two
+        // interaction events map onto fabric-api callbacks faithfully; the other four are mixins declared in
+        // ae2wtlib.fabric.platform.mixins.json. See Ae2wtlibFabricEvents for the per-event rationale (R3).
+        Ae2wtlibFabricEvents.register();
+
         // W2-STUB (W4): RegisterCapabilitiesEvent -> EnergyStorage.ITEM.registerForItems(...) with AE2's
         // appeng.fabric.transfer.PoweredItemEnergyStorage for the 3 powered terminals.
-        LOG.info("AE2wtlib Fabric platform layer initialized (W2: foundation seams).");
+        LOG.info("AE2wtlib Fabric platform layer initialized (W3: event surface).");
     }
 
     /**
