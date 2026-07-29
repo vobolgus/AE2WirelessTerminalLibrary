@@ -153,7 +153,7 @@ internals**, so all six should port as-is. ⚠ Re-verify each descriptor against
 | `GuiMixin` (client) | `Gui#extractSlot(...)` @ `GuiGraphicsExtractor#itemDecorations` | restock count overlay on the hotbar | vanilla; MixinExtras is JiJ'd by loader ≥0.15 |
 | `ServerPlayerGameModeMixin` | `ServerPlayerGameMode#useItemOn` RETURN | restock after use-on-block | vanilla |
 | `ServerPlayerMixin` | `ServerPlayer#drop(Z)` TAIL, `@Local(name="selected")` | restock after drop | `@Local` **by name** — must be re-verified; names survive only because 26.1 is unobfuscated |
-| `ServerGamePacketListenerImplMixin` | `ServerGamePacketListenerImpl#tryPickItem`, `@Local(name="slotWithExistingItem")` | restock on pick-block | ⚠ **upstream bug candidate**: it is listed under `"client"` in the mixin config although the target is a dedicated-server class → the feature is likely dead on dedicated servers. Move it to `"mixins"` on Fabric and report upstream. |
+| `ServerGamePacketListenerImplMixin` | `ServerGamePacketListenerImpl#tryPickItem`, `@Local(name="slotWithExistingItem")` | restock on pick-block | ⚠ **upstream bug** (R10): it is listed under `"client"` in the mixin config although the target is a dedicated-server class → the feature is dead on dedicated servers. Moved to `"mixins"` on Fabric (verified applying on a dedicated server, §9.3) and **filed upstream 2026-07-29 as [#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381)**. |
 | `WidgetContainerAccessor` (client) | `appeng.client.gui.WidgetContainer` | accessor | AE2 class; present in our fork |
 
 ### 1.6 Access transformers → access widener
@@ -391,7 +391,7 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 | ~~R7~~ | EMI has no 26.1 Fabric artifact | ~~low~~ **CLOSED (W6)** | `recipeviewer/AE2wtlibEmiPlugin.java` is the single remaining Fabric source-set exclude. The AE2 fork made the same call for its own EMI converter API. Revisit if an EMI 26.1 Fabric build ever ships. |
 | ~~R8~~ | REI entrypoint-timing crash (empty-ctor rule) | ~~low~~ **CLOSED (W6)** | Honoured by construction (§11.2) and verified live: `runClient -PruntimeItemlistMod=rei` logs `Registered plugin provider ae2wtlib [ae2wtlib] for REIClientPlugin` with zero ERROR. |
 | ~~R9~~ | AW field-widening flakiness (`ItemEntity.target`) | ~~low~~ **MOOT** | W3's `ItemEntityMixin` `@Shadow`s the field instead of relying on the AW; the AW line is kept only as a faithful AT translation. |
-| R10 | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | ✅ common list on Fabric, confirmed applying on a dedicated server (§9.3). **Still to report upstream.** |
+| ~~R10~~ | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | ✅ common list on Fabric, confirmed applying on a dedicated server (§9.3). **REPORTED — [AE2WTLib#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381), filed 2026-07-29.** |
 | ~~R11~~ | No automated tests anywhere in this repo | ~~medium~~ **CLOSED (W7)** | 39 gametests in a dev-only companion mod, all green; `runGametest` is now a standing gate. §12.1 |
 
 ---
@@ -633,7 +633,10 @@ the injection resolved.
 
 Upstream lists it under `"client"` although `ServerGamePacketListenerImpl` is a dedicated-server class, so pick-block
 restock is almost certainly dead on NeoForge dedicated servers. The Fabric config lists it under `"mixins"`; the
-runtime log confirms it applies on a dedicated server. **Still to report upstream.**
+runtime log confirms it applies on a dedicated server.
+
+**✅ REPORTED 2026-07-29** — filed as [Mari023/AE2WirelessTerminalLibrary#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381).
+Draft + filing record: `~/IdeaProjects/create26-ports/upstream-reports/07-ae2wtlib-server-mixin-in-client-list.md`.
 
 ### 9.4 ⚠⚠ The W3 headline: `new ItemStack(...)` is illegal during mod init on 26.1
 
@@ -1055,7 +1058,7 @@ rebaseable and PR-able.
 | R7 EMI | ✅ closed W6 (dropped) |
 | R8 REI ctor timing | ✅ closed W6 |
 | R9 AW field-widening | ✅ moot (`@Shadow` instead) |
-| R10 upstream `client`-list mixin bug | ✅ fixed on Fabric — **still to report upstream** |
+| R10 upstream `client`-list mixin bug | ✅ fixed on Fabric; **FILED upstream 2026-07-29 — [#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381)** |
 | R11 no tests | ✅ closed W7 (39) |
 | R12 entrypoint ordering | ✅ mitigated W2 (`AppEngFabricMixin`) |
 | R13 NeoForge extension methods | ✅ 3 found and sealed (`Ae2wtlibItemHooks`) |
@@ -1070,7 +1073,7 @@ rebaseable and PR-able.
 | **EMI plugin** | No 26.1 Fabric EMI artifact exists (R7) | re-add the one excluded file when one ships |
 | **NeoForge config screen** (`IConfigScreenFactory`) | No in-tree Fabric equivalent; ModMenu is the usual host and a config screen is not a parity requirement | optional ModMenu integration |
 | **Seam #8 transfer-API view** | `FabricResources#toStorage` is a static dispatcher with no extension point; unobservable here (§10.2) | the **AE2 fork** |
-| **Upstream bug report (R10)** | `ServerGamePacketListenerImplMixin` sits in upstream's `client` mixin list although its target is a dedicated-server class | an issue on `Mari023/AE2WirelessTerminalLibrary` |
+| ~~**Upstream bug report (R10)**~~ **DONE** | `ServerGamePacketListenerImplMixin` sits in upstream's `client` mixin list although its target is a dedicated-server class | ✅ filed 2026-07-29 as [Mari023/AE2WirelessTerminalLibrary#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381) |
 
 ### 12.7 In-game checklist (replaces the Prism ladder)
 
