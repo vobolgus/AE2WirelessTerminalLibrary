@@ -4,6 +4,7 @@ import java.util.ArrayList;
 
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -11,11 +12,13 @@ import net.minecraft.world.item.CreativeModeTab;
 
 import appeng.api.features.HotkeyAction;
 import appeng.core.definitions.AEItems;
+import appeng.fabric.AE2FabricRegistration;
 import appeng.hotkeys.HotkeyActions;
 
 import de.mari_023.ae2wtlib.AE2wtlibItems;
 import de.mari_023.ae2wtlib.api.AE2wtlibAPI;
 import de.mari_023.ae2wtlib.api.registration.WTDefinition;
+import de.mari_023.ae2wtlib.fabric.AE2wtlibRegistration;
 import de.mari_023.ae2wtlib.networking.CycleTerminalPacket;
 import de.mari_023.ae2wtlib.networking.SelectTerminalPacket;
 import de.mari_023.ae2wtlib.networking.TerminalSettingsPacket;
@@ -141,6 +144,34 @@ public class RegistrationTests {
         for (var name : new String[] { "upgrade", "combine" }) {
             helper.assertTrue(BuiltInRegistries.RECIPE_SERIALIZER.containsKey(AE2wtlibAPI.id(name)),
                     "Recipe serializer not registered: " + AE2wtlibAPI.id(name));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Registration is driven by AE2's {@code ae2:registration} entrypoint, NOT by the fork-private TAIL mixin on
+     * {@code AppEngFabric#init} this port used to carry. Every other test in this class only proves that registration
+     * happened <em>somehow</em>; this one pins <em>how</em>, so a silently reintroduced mixin (or a dropped entrypoint
+     * declaration that happens to still work because some other ordering saved us) is caught.
+     */
+    @GameTest
+    public void registrationRunsFromTheAe2Entrypoint(GameTestHelper helper) {
+        var declared = FabricLoader.getInstance()
+                .getEntrypointContainers(AE2FabricRegistration.ENTRYPOINT, AE2FabricRegistration.class)
+                .stream()
+                .filter(c -> c.getProvider().getMetadata().getId().equals("ae2wtlib"))
+                .map(c -> c.getEntrypoint().getClass())
+                .toList();
+        helper.assertTrue(declared.contains(AE2wtlibRegistration.class),
+                "ae2wtlib does not declare AE2wtlibRegistration under the " + AE2FabricRegistration.ENTRYPOINT
+                        + " entrypoint; registration order would be unpinned (playbook Part 10)");
+
+        try {
+            Class.forName("de.mari_023.ae2wtlib.fabric.mixin.AppEngFabricMixin");
+            helper.fail("AppEngFabricMixin is back: the entrypoint made it redundant and two drivers would fight "
+                    + "over AE2wtlibFabric.init()");
+        } catch (ClassNotFoundException expected) {
+            // good
         }
         helper.succeed();
     }

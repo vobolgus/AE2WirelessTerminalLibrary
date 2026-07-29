@@ -22,6 +22,9 @@
     "client": [
       "de.mari_023.ae2wtlib.fabric.client.AE2wtlibFabricClient"
     ],
+    "ae2:registration": [
+      "de.mari_023.ae2wtlib.fabric.AE2wtlibRegistration"
+    ],
     "jei_mod_plugin": [
       "de.mari_023.ae2wtlib.recipeviewer.JEIPlugin"
     ],

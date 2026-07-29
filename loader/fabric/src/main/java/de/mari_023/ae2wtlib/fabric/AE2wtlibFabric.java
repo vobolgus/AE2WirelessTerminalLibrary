@@ -16,6 +16,7 @@ import de.mari_023.ae2wtlib.AE2wtlibCreativeTab;
 import de.mari_023.ae2wtlib.AE2wtlibItems;
 import de.mari_023.ae2wtlib.Ae2wtlibItemHooks;
 import de.mari_023.ae2wtlib.api.AE2wtlibAPIRegistration;
+import de.mari_023.ae2wtlib.api.Ae2wtlibAccessories;
 import de.mari_023.ae2wtlib.api.Ae2wtlibNet;
 import de.mari_023.ae2wtlib.api.Ae2wtlibPlatform;
 import de.mari_023.ae2wtlib.attachment.Ae2wtlibAttachments;
@@ -33,13 +34,14 @@ import de.mari_023.ae2wtlib.wct.WrappedPlayerInventory;
  *
  * <h2>⚠ Where the real initialization happens</h2>
  *
- * <strong>Not here.</strong> {@link #init()} is driven from the TAIL of AE2's own {@code AppEngFabric.init}, via
- * {@code de.mari_023.ae2wtlib.fabric.mixin.AppEngFabricMixin} - Fabric Loader does not order entrypoints by mod
- * dependency, and AE2 registers its content from a different entrypoint per dist. See that mixin's javadoc for the full
- * reasoning and the three concrete failures it prevents (it is the W2 gate finding).
+ * <strong>Not here.</strong> {@link #init()} is driven from AE2's {@code ae2:registration} addon entrypoint, via
+ * {@link AE2wtlibRegistration} - Fabric Loader does not order entrypoints by mod dependency, and AE2 registers its
+ * content from a different entrypoint per dist. See that class's javadoc for the full reasoning and the three concrete
+ * failures it prevents (it is the W2 gate finding). Until the AE2 fork grew that entrypoint this rode a fork-private
+ * TAIL mixin on {@code AppEngFabric#init}; the entrypoint fires at exactly that position, so the switch was
+ * behaviour-preserving and removed a mixin target that had to be re-verified on every AE2 rebase.
  * <p>
- * This class stays registered as the {@code main} entrypoint so the mod has one, and so that a future AE2 addon
- * entrypoint can be switched to without touching anything else.
+ * This class stays registered as the {@code main} entrypoint so the mod has one; it does no work there.
  */
 public class AE2wtlibFabric implements ModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("ae2wtlib");
@@ -48,12 +50,12 @@ public class AE2wtlibFabric implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        // Intentionally empty - see the class javadoc. AppEngFabricMixin calls init().
+        // Intentionally empty - see the class javadoc. AE2wtlibRegistration calls init().
     }
 
     /**
      * The loader-neutral half of {@code AE2wtlibForge}'s constructor, in the same order. Called exactly once, from
-     * {@code AppEngFabricMixin}; the guard makes a future switch to a real AE2 addon entrypoint a one-line change.
+     * {@link AE2wtlibRegistration}; the guard is kept because the seam is a public entrypoint contract.
      */
     public static synchronized void init() {
         if (initialized)
@@ -67,6 +69,8 @@ public class AE2wtlibFabric implements ModInitializer {
         Ae2wtlibAttachments.init(new FabricAttachments());
         Ae2wtlibItemFactory.init(new FabricItemFactory());
         Ae2wtlibItemHooks.init(new FabricItemHooks());
+        // Accessory (trinket) slots, through AE2's own Trinkets-backed view - see FabricAccessories.
+        Ae2wtlibAccessories.init(new FabricAccessories());
         WrappedPlayerInventory.factory = FabricWrappedPlayerInventory::new;
 
         new AE2wtlibAPIImplementation();

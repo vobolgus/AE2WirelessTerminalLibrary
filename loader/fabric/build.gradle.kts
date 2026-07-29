@@ -133,6 +133,13 @@ loom {
     runs {
         configureEach {
             runDir = "run"
+            // MIXIN_VERBOSE=1 ./gradlew :loader:fabric:runServer  ->  logs every mixin as it is applied. This is
+            // the standing "are my mixin targets still valid" check after an AE2 rebase (PORTING_NOTES section 9.2);
+            // `required: true` + `defaultRequire: 1` already turn a miss into a boot crash, but the log is what
+            // tells you the expected COUNT is still what you think it is.
+            if (System.getenv("MIXIN_VERBOSE") != null) {
+                property("mixin.debug.verbose", "true")
+            }
         }
         named("server") {
             programArgs("nogui")
