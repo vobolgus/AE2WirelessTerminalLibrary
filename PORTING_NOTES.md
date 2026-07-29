@@ -21,7 +21,9 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
 | **W4** | capabilities / transfer (energy + inventories) | ✅ **DONE** 2026-07-29 — see §10 |
 | ~~W5~~ | ~~client: screens, GUI, hotkeys, scroll input~~ | **absorbed into W3** (§9.5) |
 | **W6** | integrations (JEI / REI / EMI, Curios→Trinkets) | ✅ **DONE** 2026-07-29 — see §11 |
-| W7 | gates: gametest → Prism in-world → real-network MP; polish | ▫ |
+| **W7** | gametests, real-network MP join, pack staging | ✅ **DONE** 2026-07-29 — see §12 |
+
+**The port is code-complete.** Final status, deferrals and the in-game checklist: §12.5–§12.7.
 
 **W1 gates (both green, 2026-07-29):**
 - `./gradlew assemble -PruntimeItemlistMod=none` (NeoForge, root + `:ae2wtlib_api`) — **GREEN**, unchanged behaviour.
@@ -39,7 +41,7 @@ so this is a *loader* port only — **no MC forward-port**, which is the cheapes
   recorded from an earlier state of `AE2wtlibFabric.init()`. Root cause and fix: §9.4. **Lesson: re-run a gate
   from the commit you are claiming it for.**
 
-**W3 gates:** §9.6. **W4 + W6 gates:** §11.4. — all green, 2026-07-29.
+**Gate log:** W3 §9.6 · W4+W6 §11.4 · W7 §12.4 — all green, 2026-07-29.
 
 ---
 
@@ -380,7 +382,7 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 | R2 | **AE2 Fabric jar is hand-installed in mavenLocal** — no reproducible publish, silently stale after an AE2 rebase | ~~high~~ **CLOSED** | the AE2 fork now publishes `org.appliedenergistics:appliedenergistics2-fabric:26.1.10-beta` to mavenLocal properly (POM + `.module` + sources/javadoc). Re-run `:fabric:publishToMavenLocal` after every AE2 rebase and keep `ae2Version` in lock-step. |
 | ~~R3~~ | **Restock is the feature, and it is 100% event-driven** — 6 NeoForge events with priority semantics (`EventPriority.LOWEST`, `event.isCanceled()`) that Fabric callbacks do not reproduce | ~~high~~ **CLOSED (headless)** | W3 mapped all 9 listeners - §9.1. `LOWEST` + `isCanceled` map exactly onto a fabric-api late **phase** + the array-backed invoker's non-`PASS` short-circuit, so the two interaction events are callbacks; the other four have no fabric-api equivalent at all and became javap-verified mixins. In-world verification still open (W7). |
 | ~~R4~~ | `@Local(name=…)` in two mixins (`selected`, `slotWithExistingItem`) | ~~medium~~ **CLOSED - and it BIT** | `slotWithExistingItem` is real; **`selected` does not exist in vanilla** (NeoForge patch adds it) and `removed` is not a substitute. Shared `ServerPlayerMixin` excluded from the Fabric tree, `ServerPlayerDropMixin` added. All 11 mixins confirmed applied at runtime with `-Dmixin.debug.verbose=true`. §9.2 |
-| R5 | **Multiplayer packet desync** — 6 payloads, one enum codec, item stacks | medium | playbook Part 10; format-pinning tests + a real-network join in W7. Singleplayer and gametests will NOT catch it |
+| ~~R5~~ | **Multiplayer packet desync** — 6 payloads, one enum codec, item stacks | ~~medium~~ **CLOSED (W7)** | Both halves done: 7 headless codec round-trips (`NetworkCodecTests`, buffer-consumption asserted) **and** a real-network join to a dedicated server with all 6 items + 3 mod data components crossing the wire, 0 decode errors. §12.2 |
 | R6 | `AEItemsMixin` replaces an **AE2-owned item class** — if AE2's Fabric registration path constructs items differently, the swap may not take | ~~medium~~ **CLOSED** (W2) | verified **live**: the swap takes against the fork's `AEItemEntry` path. Asserted at init by `AE2wtlibFabric.verifyWirelessCraftingTerminalSwap()`, and a dedicated server boots past it (§8.3). |
 | **R12** | **Fabric Loader does not order entrypoints by mod dependency**, and AE2 registers content from a different entrypoint per dist → wrong item raw ids on one side = silent MP corruption | ~~critical~~ **MITIGATED** (W2) | registration is driven from a TAIL mixin on `AppEngFabric#init` (§8.3). ⚠ `AppEngFabric` exists only in our AE2 fork — **re-verify the target on every AE2 rebase**. Durable fix = an `ae2:registration` addon entrypoint in the AE2 fork. |
 | **R13** | **NeoForge extension-method surface** was invisible to the W1 import scan; more may still be hiding in the W3/W5 files | medium | 3 found and sealed behind `Ae2wtlibItemHooks` (§8.2); one carries a real behaviour gap (`PreventRemoteMovement`). Expect more when the event surface and the client tree compile. |
@@ -390,7 +392,7 @@ surface: Create Fly's `compat/trinkets/` (`GoggleTrinket`) in `~/IdeaProjects/re
 | ~~R8~~ | REI entrypoint-timing crash (empty-ctor rule) | ~~low~~ **CLOSED (W6)** | Honoured by construction (§11.2) and verified live: `runClient -PruntimeItemlistMod=rei` logs `Registered plugin provider ae2wtlib [ae2wtlib] for REIClientPlugin` with zero ERROR. |
 | ~~R9~~ | AW field-widening flakiness (`ItemEntity.target`) | ~~low~~ **MOOT** | W3's `ItemEntityMixin` `@Shadow`s the field instead of relying on the AW; the AW line is kept only as a faithful AT translation. |
 | R10 | Upstream `ServerGamePacketListenerImplMixin` sits in the `client` mixin list → pick-block restock probably dead on dedicated servers | low (a *fix*, not a regression) | ✅ common list on Fabric, confirmed applying on a dedicated server (§9.3). **Still to report upstream.** |
-| R11 | No automated tests anywhere in this repo | medium | W7: crib AE2's Fabric gametest runner; at minimum place/spawn-and-tick every registered item + a recipe-presence test (playbook rules #6, #8) |
+| ~~R11~~ | No automated tests anywhere in this repo | ~~medium~~ **CLOSED (W7)** | 39 gametests in a dev-only companion mod, all green; `runGametest` is now a standing gate. §12.1 |
 
 ---
 
@@ -890,3 +892,217 @@ Remaining deferrals are all deliberate and documented, none of them stubs:
    never serializes them and gametests will not catch it. Playbook Part 10.
 4. **Pack integration** — build the jar into `create26-ports/pack/mods-local/`, alongside the AE2 and GuideME Fabric
    jars, and re-verify in the live Prism instance.
+
+---
+
+## 12. W7 — gametests, real-network MP, pack staging (landed 2026-07-29)
+
+### 12.1 Gametest harness — 39 tests
+
+Built to the workspace template (`create26-ports/GAMETEST_HARNESS.md`), **not** to AE2's own shape: AE2 ships its
+plot tests inside the main jar and injects them into the `minecraft:test_instance` registry with a mixin gated on
+`-Dappeng.tests`. This port uses the standard fabric-api route instead:
+
+- a `gametest` **source set** (`loader/fabric/src/gametest/`), whose classpath is `main`'s plus `main`'s output;
+- a **dev-only companion mod** `ae2wtlib_gametest` with its own `fabric.mod.json` and a `fabric-gametest`
+  entrypoint — so the tests are structurally incapable of reaching the release jar (verified:
+  `unzip -l … | grep -i gametest` → 0);
+- a loom run: `create("gametest") { server(); source(gametestSourceSet); property("fabric-api.gametest", "true") }`
+  → `./gradlew :loader:fabric:runGametest`.
+
+> ⚠ **The silent-skip rule.** fabric's `TestAnnotationLocator` reflects **only** over the classes named in the
+> `fabric-gametest` entrypoint array. An unlisted class is skipped with no failure and no warning louder than a debug
+> line. All six classes are listed; the arithmetic check is that the run reports **40 = 39 own + vanilla's
+> `minecraft:always_pass`**. If that number drops, a class fell off the list.
+
+Method contract (enforced by fabric): `public`, non-`static`, `void`, exactly one `GameTestHelper` parameter,
+annotated `@net.fabricmc.fabric.api.gametest.v1.GameTest`. `structure` defaults to `fabric-gametest-api-v1:empty`
+(an 8×8×8 air plot shipped inside fabric-api), so **no structure/template files are needed**.
+
+| Class | # | What it pins |
+|---|---:|---|
+| `RegistrationTests` | 9 | `AEItemsMixin` swap (R6); items / menus / terminals / hotkeys / recipe serializers registered; C2S receivers wired; **the R14 guard** — the creative tab is built through `buildContents()` *on the server*, the exact path that used to crash with "Components not bound yet" |
+| `ItemTests` | 8 | spawn-and-tick every item incl. the swapped WCT; charged-stack creation; a WUT `mergeTerminal` round-trip |
+| `RecipeTests` | 3 | serializer identity; datapack recipes actually *using* both serializers; a floor on the mod's own loaded recipes |
+| `EnergyTests` | 5 | **W4 seam #7** — `EnergyStorage.ITEM` resolves for all three powered terminals *and* AE2's WCT, with a real AE→FE conversion assertion on a charged stack |
+| `NetworkCodecTests` | 7 | **R5's headless half** — see §12.2 |
+| `RestockTests` | 7 | the guard chain all six event paths funnel through: `restock` / `insertStackInME` / `pickBlock` must bail cleanly with no terminal, no grid, or the component off — and must never consume items |
+
+Two things worth copying to the next port:
+
+- **`PayloadTypeRegistry` has no lookup method** (only `register`), so "are the payload types registered?" is not
+  directly assertable. The observable server-side proxy is `ServerPlayNetworking.getGlobalReceivers()` for the C2S
+  direction; the S2C direction is covered by the codec tests plus the real join.
+- `GameTestHelper#makeMockServerPlayerInLevel()` is deprecated-for-removal but is still the only way to get a real
+  `ServerPlayer` headlessly; it works fine and `RestockTests` depends on it.
+
+### 12.2 R5 — the multiplayer gate, both halves
+
+**Half 1, headless (`NetworkCodecTests`, 7 tests).** Each of the six payloads is pushed through its own
+`STREAM_CODEC` into a real `RegistryFriendlyByteBuf` and read back. Two assertions per payload: the value survives,
+**and the buffer is fully consumed** (`readerIndex == writerIndex`). A codec that writes more than it reads is
+exactly the stream desync that cascades into "Invalid tag id" garbage on a live server. The map payload
+(`RestockAmountPacket`) is compared per entry, per the playbook, and `UpdateRestockPacket` is tested with both a
+real stack and `ItemStack.EMPTY` (the OPTIONAL codec's null branch).
+
+**Half 2, real network.** The harness is the playbook Part 10 shape — `QUICKPLAY_MP` env-gates
+`--quickPlayMultiplayer` on the loom `client` run:
+
+```kotlin
+named("client") {
+    System.getenv("QUICKPLAY_MP")?.let { programArgs("--quickPlayMultiplayer", it) }
+    System.getenv("QUICKPLAY_SP")?.let { programArgs("--quickPlaySingleplayer", it) }
+}
+```
+
+⚠ **This port's refinement over the spell-power original: use loom's own `runServer` as the other end.** The
+playbook assembles a separate server kit; but `runServer` and `runClient` in the *same* project have a
+byte-identical modset by construction, which is precisely what Part 10 demands ("bisect with MATCHED modsets both
+sides"), with zero drift risk and no jar staging. Recipe:
+
+1. `loader/fabric/run/server.properties`: `online-mode=false`, `enforce-secure-profile=false`,
+   `server-port=25570`, `spawn-protection=0`, `level-type=flat` (fast boot). Optionally `enable-rcon=true` +
+   `rcon.port`/`rcon.password` to drive commands (see below).
+2. `./gradlew :loader:fabric:runServer -PruntimeItemlistMod=none` → wait for `Done (`.
+3. `QUICKPLAY_MP=localhost:25570 ./gradlew :loader:fabric:runClient -PruntimeItemlistMod=none`.
+4. Restore `server.properties` afterwards.
+
+**Result:** client `Connecting to localhost, 25570` → `Loaded 41 advancements`; server
+`Player966 logged in with entity id 1` / `joined the game`. **Server 0 ERROR, client 1 ERROR** — and that one is
+`MinecraftClientHttpException: Status: 401 … Failed to retrieve profile key pair`, the expected unauthenticated
+dev-account profile-key fetch, nothing to do with this mod.
+
+Then, over the live socket via RCON, all six items and three mod data components were pushed to the connected
+client and read back:
+
+```
+give Player966 ae2wtlib:wireless_universal_terminal[ae2wtlib:restock=true,ae2wtlib:pick_block=true,ae2wtlib:craft_if_missing=true]
+data get entity Player966 Inventory
+→ [{… id:"ae2wtlib:wireless_universal_terminal"}, {… id:"ae2:wireless_crafting_terminal"}, {… magnet_card},
+   {… quantum_bridge_card}, {… wireless_pattern_access_terminal}, {… wireless_pattern_encoding_terminal},
+   {components:{"ae2wtlib:pick_block":1b,"ae2wtlib:restock":1b,"ae2wtlib:craft_if_missing":1b}, …}]
+```
+
+That is the raw-id-sensitive path exercised directly: `ItemStack`'s stream codec addresses data component types by
+**raw registry id** (§8.7), so a divergence in component registration order between the two sides would corrupt
+here. The client stayed connected with zero decode errors. **R5 closed.**
+
+> ⚠ **Machine-rule gotcha, recorded because it cost a scare.** `pgrep -f "java.*Create Fly 26.1"` **matches its own
+> invoking shell** — the pattern string is part of the `zsh -c` command line, so the check reports a live game that
+> does not exist. A form that does not self-match:
+> ```bash
+> pgrep -x java | xargs -I{} sh -c 'ps -p {} -o command= | grep -q "Create Fly 26.1" && echo "LIVE GAME {}"'
+> ```
+
+### 12.3 Pack staging
+
+`TAG=26.1.0-alpha.1 ./gradlew :loader:fabric:build` →
+**`ae2wtlib-fabric-26.1.0-alpha.1.jar`** (670 KB), copied to `create26-ports/pack/mods-local/`. Nothing else in the
+pack was touched (`modrinth.index.json` / lockfile are the deploy step's business; `mods-local/` is gitignored).
+
+**AE2 version identity verified rather than assumed:** the jar this build compiled against
+(`~/.m2/…/appliedenergistics2-fabric-26.1.10-beta.jar`), the AE2 fork's `dist/` output and the copy already staged in
+`pack/mods-local/` are all the **same SHA-256** (`9460e1a8816bac90…`). So the staged AE2WTLib is built against
+exactly the AE2 the pack ships.
+
+Release-jar audit (`unzip -l`):
+
+| Must be absent | Must be present |
+|---|---|
+| gametest classes & companion `fabric.mod.json`; `de/mari_023/ae2wtlib/neoforge/**`; `AE2wtlibForge`/`AE2wtlibClient`; `META-INF/neoforge.mods.toml`; `accesstransformer.cfg`; the NeoForge-named `ae2wtlib.mixins.json`; `data/curios/**`; the EMI plugin | `recipeviewer/JEIPlugin` + `REIPlugin`; `ae2wtlib.accesswidener`; all three `*.fabric.mixins.json`; nested `core-3.8.3.jar` + `toml-3.8.3.jar` (night-config) |
+
+`fabric.mod.json`: `id=ae2wtlib`, `version=26.1.0-alpha.1`, entrypoints `main` / `client` / `jei_mod_plugin` /
+`rei_client`, depends `fabricloader >=0.19.3`, `fabric-api`, `minecraft ~26.1.2`, `ae2`.
+
+### 12.4 W7 gates (all green, 2026-07-29)
+
+| Gate | Result |
+|---|---|
+| `:loader:fabric:runGametest` | **GREEN** — `========= 40 GAME TESTS COMPLETE IN 932.0 ms` / `All 40 required tests passed :)` (39 own + vanilla `always_pass`) |
+| real-network MP join | **GREEN** — join + 6 items + 3 data components over TCP; server 0 ERROR, client 0 relevant ERROR |
+| `:loader:fabric:build` | **GREEN** |
+| `build spotlessCheck -PruntimeItemlistMod=none` (NeoForge) | **GREEN** |
+| `assemble -Pae2wtlib.skipFabric=true` | **GREEN** |
+| release-jar audit | **GREEN** (table above) |
+
+Standing gate set for any future change (run in this order — playbook golden rule #3):
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
+./gradlew build spotlessCheck -PruntimeItemlistMod=none        # NeoForge regression harness
+./gradlew assemble -Pae2wtlib.skipFabric=true                  # NeoForge-only CI job
+./gradlew :loader:fabric:build
+./gradlew :loader:fabric:runServer -PruntimeItemlistMod=none   # client-class-leak canary
+./gradlew :loader:fabric:runGametest                           # 40 tests
+./gradlew :loader:fabric:runClient -PruntimeItemlistMod=rei    # + once with =jei
+# real-network join per §12.2 when networking or registration changed
+```
+
+### 12.5 Final port status
+
+**Green and code-complete.** Every wave-tagged stub is closed (`grep -rn "W[0-9]-STUB"` → zero). Both loaders build;
+the NeoForge module remains a byte-faithful regression harness against **upstream** AE2, so the fork stays
+rebaseable and PR-able.
+
+| Risk | State |
+|---|---|
+| R1 `ItemDefinition`/`AEItems.DR` divergence | ✅ closed W2 |
+| R2 AE2 mavenLocal publish | ✅ closed (fork publishes properly) |
+| R3 restock event surface | ✅ closed W3 (headless; in-game checklist §12.7) |
+| R4 `@Local` drift | ✅ closed W3 — **it bit**, `selected` does not exist in vanilla |
+| R5 multiplayer desync | ✅ closed W7 |
+| R6 `AEItemsMixin` swap | ✅ closed W2, re-guarded by 2 gametests |
+| R7 EMI | ✅ closed W6 (dropped) |
+| R8 REI ctor timing | ✅ closed W6 |
+| R9 AW field-widening | ✅ moot (`@Shadow` instead) |
+| R10 upstream `client`-list mixin bug | ✅ fixed on Fabric — **still to report upstream** |
+| R11 no tests | ✅ closed W7 (39) |
+| R12 entrypoint ordering | ✅ mitigated W2 (`AppEngFabricMixin`) |
+| R13 NeoForge extension methods | ✅ 3 found and sealed (`Ae2wtlibItemHooks`) |
+| R14 eager `ItemStack` in init | ✅ closed W4/W7, gametest-guarded |
+| R15 client entrypoint ordering | ✅ mitigated W3 (`FabricClientBootstrap`) |
+
+### 12.6 Deferred, deliberately
+
+| Item | Why | Where it would be fixed |
+|---|---|---|
+| **Curios → Trinkets** | Out of scope by design (§5). Upstream has it commented out on NeoForge too, and AE2's `FabricCuriosSupport` is a no-op returning `null` | the **AE2 fork** first, then a small change here |
+| **EMI plugin** | No 26.1 Fabric EMI artifact exists (R7) | re-add the one excluded file when one ships |
+| **NeoForge config screen** (`IConfigScreenFactory`) | No in-tree Fabric equivalent; ModMenu is the usual host and a config screen is not a parity requirement | optional ModMenu integration |
+| **Seam #8 transfer-API view** | `FabricResources#toStorage` is a static dispatcher with no extension point; unobservable here (§10.2) | the **AE2 fork** |
+| **Upstream bug report (R10)** | `ServerGamePacketListenerImplMixin` sits in upstream's `client` mixin list although its target is a dedicated-server class | an issue on `Mari023/AE2WirelessTerminalLibrary` |
+
+### 12.7 In-game checklist (replaces the Prism ladder)
+
+Headless gates cannot observe rendering, input or a live ME network. This is what to watch for during organic play
+on the live server — grouped by the seam that would break it.
+
+**Restock — all six trigger paths** (each is a different W3 mapping; a failure isolates the mapping):
+1. *Eat / drink / use-up an item* (`LivingEntityUseItemEvent.Finish` → `@WrapOperation` on `finishUsingItem`) — the stack refills.
+2. *Right-click a block while placing* (`RightClickBlock` @LOWEST → `UseBlockCallback` late phase) — the held stack tops up.
+3. *Right-click an entity* (`EntityInteractSpecific` → `UseEntityCallback` late phase).
+4. *Place blocks until the stack empties* (`ServerPlayerGameMode#useItemOn` RETURN mixin).
+5. *Drop one / drop the whole stack with Q* (`ServerPlayerDropMixin` — the R4 rewrite; **watch this one hardest**, it is the only place where the Fabric implementation is not the same source as NeoForge's).
+6. *Pick-block (middle-click) an item you do not carry* (`ServerGamePacketListenerImplMixin` — note this path is probably dead on NeoForge dedicated servers, R10, so it is *new* behaviour here).
+   Also: *draw and release a bow, and fire a crossbow* — arrows restock (`BowItemMixin` / `CrossbowItemMixin`).
+
+**Magnet card** — dropped items vanish into the ME network; the include/exclude filter and whitelist/blacklist modes
+behave; shift-sneak suppresses pickup. ⚠ Known Fabric behaviour gap (§8.2): items another mod pinned with
+`PreventRemoteMovement` are **not** exempt on Fabric.
+
+**Stow** hotkey; the three AE2 hotkeys (`ae2wtlib_restock`, `ae2wtlib_magnet`, `ae2wtlib_stow`) appear in
+Controls and fire.
+
+**WUT shift-scroll** cycles the active terminal with no screen open (`MouseHandlerMixin`), and does *not* fire while
+a screen is open or without a WUT in hand.
+
+**Five screens** open and render: WCT, WET, WAT, Magnet, Trash — plus the restock count overlay on the hotbar
+(`GuiMixin`) and the terminal-settings screen.
+
+**Two recipe-viewer assertions** (the part §11.4 could not reach headlessly): with JEI, and separately with REI, the
+**universal terminal appears as a crafting workstation** for the vanilla crafting category.
+
+**Energy**: all three terminals charge in a charger / from an FE source and show their bar (W4 seam #7).
+
+**Multiplayer**: two players, terminals in both inventories, a WUT with several terminals merged — watch for item
+corruption or ghost stacks after relog (the R5 surface that only a long session exposes).
