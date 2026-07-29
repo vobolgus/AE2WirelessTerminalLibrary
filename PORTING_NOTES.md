@@ -346,6 +346,11 @@ multiplayer join** (playbook Part 10 — singleplayer never serializes packets, 
 
 ## 5. Curios → Trinkets mapping surface
 
+> ✅ **SUPERSEDED 2026-07-29 — this was done, see §13.2.** The AE2 fork implemented `FabricCuriosSupport` over
+> Trinkets, so the dependency chain below resolved and the recommendation ("keep it out of scope") no longer holds.
+> The W1 analysis is kept because it is still an accurate map of the surface; the one prediction that missed is that
+> this module would need a Trinkets dependency — it does not, it rides AE2's view (§13.2 explains why it *must*).
+
 **Good news: the surface is currently empty.** Upstream's only Curios code is *commented out*:
 `WUTHandler#findTerminal` (`ae2wtlib_api/.../terminal/WUTHandler.java:130-144`) carries
 `// FIXME reintroduce curio compat once the ae2 curio integration is updated to work properly`,
@@ -1060,7 +1065,7 @@ rebaseable and PR-able.
 | R9 AW field-widening | ✅ moot (`@Shadow` instead) |
 | R10 upstream `client`-list mixin bug | ✅ fixed on Fabric; **FILED upstream 2026-07-29 — [#381](https://github.com/Mari023/AE2WirelessTerminalLibrary/issues/381)** |
 | R11 no tests | ✅ closed W7 (39) |
-| R12 entrypoint ordering | ✅ mitigated W2 (`AppEngFabricMixin`) |
+| R12 entrypoint ordering | ✅ **CLOSED 2026-07-29** — the W2 `AppEngFabricMixin` workaround is gone; registration now rides AE2's `ae2:registration` addon entrypoint (§13) |
 | R13 NeoForge extension methods | ✅ 3 found and sealed (`Ae2wtlibItemHooks`) |
 | R14 eager `ItemStack` in init | ✅ closed W4/W7, gametest-guarded |
 | R15 client entrypoint ordering | ✅ mitigated W3 (`FabricClientBootstrap`) |
@@ -1069,7 +1074,7 @@ rebaseable and PR-able.
 
 | Item | Why | Where it would be fixed |
 |---|---|---|
-| **Curios → Trinkets** | Out of scope by design (§5). Upstream has it commented out on NeoForge too, and AE2's `FabricCuriosSupport` is a no-op returning `null` | the **AE2 fork** first, then a small change here |
+| ~~**Curios → Trinkets**~~ | ✅ **DONE 2026-07-29** (§13.2). AE2's `FabricCuriosSupport` is implemented over Trinkets, so the commented-out block is reinstated behind a seam. NeoForge deliberately keeps upstream's disabled behaviour | — |
 | **EMI plugin** | No 26.1 Fabric EMI artifact exists (R7) | re-add the one excluded file when one ships |
 | **NeoForge config screen** (`IConfigScreenFactory`) | No in-tree Fabric equivalent; ModMenu is the usual host and a config screen is not a parity requirement | optional ModMenu integration |
 | **Seam #8 transfer-API view** | `FabricResources#toStorage` is a static dispatcher with no extension point; unobservable here (§10.2) | the **AE2 fork** |
@@ -1109,3 +1114,113 @@ a screen is open or without a WUT in hand.
 
 **Multiplayer**: two players, terminals in both inventories, a WUT with several terminals merged — watch for item
 corruption or ghost stacks after relog (the R5 surface that only a long session exposes).
+
+**Trinkets slot** (needs `trinkets_updated` installed — absent from the dev runtime, so nothing below is
+headlessly reachable; §13.2):
+1. The trinkets screen (default `[R]`) shows a **belt** slot on the player.
+2. A wireless universal / pattern-encoding / pattern-access terminal and AE2's wireless crafting terminal can all be
+   **socketed** into it (they are in `trinkets:legs/belt`; only one at a time — the slot has size 1).
+3. With one worn and **nothing in the inventory**: the terminal **hotkey opens it**, and the restock / magnet / stow
+   hotkeys act on it (all four go through `findTerminal`).
+4. Restock and the magnet range check work off the worn terminal (`CraftingTerminalHandler#inRange`).
+5. ⚠ **Multiplayer specifically**: open a worn terminal on a dedicated server. `CuriosItemLocator` writes the flat
+   slot **index** over the wire, and client and server compute that flattening independently (AE2 sorts trinket
+   inventories by their `group/slot` key). A mismatch would open the wrong item, or nothing.
+6. Take the terminal out of the slot while its screen is open — the screen should close cleanly, not desync.
+
+
+---
+
+## 13. Entrypoint migration + Trinkets (landed 2026-07-29)
+
+Two coupled changes, both enabled by work in the AE2 fork landing first. Both closed BACKLOG rows.
+
+### 13.1 `AppEngFabricMixin` → AE2's `ae2:registration` entrypoint
+
+**What changed in the AE2 fork:** `appeng.fabric.AE2FabricRegistration` (the existing `ae2:registration` entrypoint
+interface, until now part-APIs only) gained a second default method, `registerContent()`, dispatched with
+`FabricLoader.getEntrypointContainers` from the **very end of `AppEngFabric.init(AppEngBase)`**.
+
+**Why that call site is the raw-id-ordering guarantee.** `init(AppEngBase)` is a single static method with exactly two
+callers — `AppEngFabric.onInitialize()` under an `EnvType.SERVER` guard (the `main` entrypoint) and
+`AppEngFabricClient.onInitializeClient()` after it has constructed `AppEngClient` (the `client` entrypoint). Nothing
+inside the method is dist-conditional, so **both dists execute the identical statement sequence** and a hook at its
+tail fires at the identical position on both. That is precisely what W2 (§8.3) needed and could only get from a mixin:
+the ordering "all AE2 content, then addon content" holds on the client *and* on the dedicated server, so item raw ids
+agree across a connection. Placing the hook at the TAIL (rather than, say, right after `FabricRegistrar.registerAll()`)
+was deliberate: it is where the old mixin injected, so the switch is behaviour-preserving, and it also matches
+NeoForge's ordering, where the mod bus runs an addon's construction *and* `FMLCommonSetupEvent` after AE2's.
+
+**Here:** `de.mari_023.ae2wtlib.fabric.AE2wtlibRegistration` (one method, calls `AE2wtlibFabric.init()`), declared under
+`"ae2:registration"` in `fabric.mod.json`. `AppEngFabricMixin` deleted and removed from
+`ae2wtlib.fabric.platform.mixins.json`. The `initialized` guard in `AE2wtlibFabric` stays — the seam is a public
+entrypoint contract now.
+
+⚠ **Keep the entrypoint class's constructor empty.** Fabric Loader instantiates one object per entrypoint *key*, and
+AE2 dispatches that same key earlier (part APIs, from `InitApiLookup.init()`), so the object is constructed during AE2's
+init — before `registerContent()` runs. Corollary: `registerPartApis` runs *before* `registerContent`, so an addon with
+a custom part host must not create its `BlockEntityType` inside `registerContent()`.
+
+**Mixin state: 12 declared → 11.** Verified with the new `MIXIN_VERBOSE=1` run-config toggle
+(`MIXIN_VERBOSE=1 ./gradlew :loader:fabric:runServer`): server-side applications **9 → 8**, client 9,
+`AppEngFabricMixin` absent from both. `WidgetContainerAccessor` applies lazily on first screen open, as before.
+
+**Regression guard:** `RegistrationTests#registrationRunsFromTheAe2Entrypoint` asserts *how* registration happened, not
+just that it did — the entrypoint container must be declared by `ae2wtlib`, and `AppEngFabricMixin` must no longer be
+loadable (two drivers calling `init()` would fight). Every other test in that class only proves the outcome.
+
+### 13.2 Curios → Trinkets (§5 and R-row closed)
+
+**What changed in the AE2 fork:** `appeng.fabric.FabricCuriosSupport` no longer returns `null`. It delegates to
+`appeng.fabric.integration.trinkets.TrinketsAccessorySupport` behind an `isModLoaded("trinkets_updated")` guard, which
+flattens the player's Trinkets inventories into AE2's slot-indexed `CuriosSupport.Inventory`. AE2 also ships
+`data/trinkets/tags/item/legs/belt.json` + `data/trinkets/entities/ae2.json` in its Fabric jar.
+
+**Slot mapping.** Curios' generic `curio` slot has **no** eu.pb4 equivalent (the twelve built-ins are
+`head/{face,hat}`, `chest/{back,cape,necklace}`, `hand|offhand/{glove,ring}`, `legs/belt`, `feet/{shoes,aglet}`), and a
+custom group would need a collision-prone numeric `slot_id` plus a slot icon neither mod ships. AE2 remapped onto
+**`legs/belt`** — a wireless terminal is a gadget on a belt, the icon and validator exist, and it leaves
+`chest/necklace` free for the amulet-style items other pack mods use (iceandfire-ce's hydra heart is already there).
+One slot, size 1, which is also what a single Curios `curio` slot gives.
+
+**Here:**
+- `de.mari_023.ae2wtlib.api.Ae2wtlibAccessories` — loader-neutral slot-indexed view (`size`/`getStack`). Nothing is
+  injected on NeoForge, so `get()` reports "no accessory inventory", **byte-for-byte the behaviour of the commented-out
+  Curios block** it replaces. The upstream FIXME stays, narrowed to NeoForge.
+- `WUTHandler#findTerminal` scans accessory slots first, exactly as the original block did (universal terminal
+  short-circuits, specialised one is a fallback). This is the single funnel — `Ae2wtlibLocatingService` (hotkeys/open)
+  and `CraftingTerminalHandler#getLocator` (restock, magnet range, stow, GUI) are its only callers — so every feature
+  picks worn terminals up at once.
+- `FabricAccessories` is a **thin adapter onto AE2's `CuriosSupport`, deliberately not a second Trinkets
+  integration.** The index it hands out is passed to `MenuLocators.forCurioSlot(int)`, which AE2 resolves through its
+  *own* flattening and writes to the wire; a second, independently ordered enumeration of the same slots could
+  disagree and resolve the wrong slot. Riding AE2's view makes them agree by construction — and this module therefore
+  needs **no Trinkets dependency at all**, only the tag. (`trinketsVersion` in `gradle.properties` stays unused.)
+- `data/trinkets/tags/item/legs/belt.json` in `loader/fabric/src/main/resources` — the Fabric-jar twin of the
+  NeoForge-only `data/curios/tags/item/curio.json` (which `loader/fabric/build.gradle.kts` still excludes). Same four
+  ids. **No `entities` file here**: AE2 owns the player attachment and this mod hard-depends on AE2.
+
+⚠ **The two tag files cannot be compared at runtime on Fabric** (the curios one is excluded from the jar), unlike in
+the AE2 fork where both ship and the drift guard is a set equality. Here the guard is derived from the code instead:
+`AccessorySlotTests#everyTerminalOptsIntoTheAccessorySlot` walks `WTDefinition.wirelessTerminals()` plus the WUT and
+requires each to be in `trinkets:legs/belt`, so a terminal added without a tag entry fails. The first draft of that
+test *did* compare the two tags and failed immediately — a useful reminder that the exclude is real.
+
+### 13.3 Gates (all green, 2026-07-29)
+
+| Gate | Result |
+|---|---|
+| `./gradlew build spotlessCheck -PruntimeItemlistMod=none` (NeoForge) | SUCCESS |
+| `./gradlew assemble -Pae2wtlib.skipFabric=true` | SUCCESS |
+| `./gradlew :loader:fabric:build` (+ `spotlessCheck`) | SUCCESS |
+| `:loader:fabric:runGametest` | **44/44** (43 own + `minecraft:always_pass`; was 40 — +1 entrypoint guard, +3 accessory) |
+| `:loader:fabric:runServer -PruntimeItemlistMod=none` | `Done (0.133s)!`, **0 ERROR** |
+| `:loader:fabric:runClient -PruntimeItemlistMod=jei` | **0 ERROR**, client mixins applied |
+| Mixin-apply verification (`MIXIN_VERBOSE=1`) | server **8** (was 9), client **9**; `AppEngFabricMixin` absent |
+| **QUICKPLAY_MP real-network join** (§12.2, re-run because registration order moved) | joined `localhost:25570`; 8 wearables incl. 3 mod data components given over RCON to the connected client; **server 0 ERROR, client 1 ERROR** (the expected unauthenticated-dev-account 401) |
+
+The MP re-run is the load-bearing one: this change moved *when* our content registers relative to AE2's, which is
+exactly the raw-id-sensitive path §12.2 exists to cover.
+
+⚠ `loader/fabric/run/server.properties` was restored to defaults afterwards; re-apply the §12.2 step 1 edits (plus
+`enable-rcon=true`, `rcon.port`, `rcon.password` if you want the give/inspect half) before re-running the harness.
