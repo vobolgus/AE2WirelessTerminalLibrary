@@ -29,7 +29,10 @@ plugins {
 val mavenGroup: String by project
 val modID: String by project
 val ae2wtlibCurrentMajor: String by project
-val ae2Version: String by project
+// NOTE: the Fabric module resolves OUR AE2 fork, never upstream AE2 - it compiles the shared srcDirs
+// (root + ae2wtlib_api) against `appliedenergistics2-fabric` from mavenLocal. Its pin therefore moves
+// independently of the root project's upstream `ae2Version` (see gradle.properties / PORTING_NOTES 3.2).
+val ae2FabricVersion: String by project
 
 group = mavenGroup
 version = "${ae2wtlibCurrentMajor}0.0.0-SNAPSHOT"
@@ -248,11 +251,10 @@ dependencies {
     implementation("net.fabricmc:fabric-loader:${prop("fabric_loader_version")}")
     implementation("net.fabricmc.fabric-api:fabric-api:${prop("fabric_api_version")}")
 
-    // Our AE2 Fabric fork. Hand-installed into mavenLocal for now:
-    //   ~/.m2/repository/org/appliedenergistics/appliedenergistics2-fabric/26.1.10-beta/
-    // The durable fix is adding `maven-publish` to the AE2 fork's loader/fabric/build.gradle.kts and
-    // running `./gradlew :fabric:publishToMavenLocal` - see PORTING_NOTES.md "AE2 dependency".
-    implementation("org.appliedenergistics:appliedenergistics2-fabric:$ae2Version")
+    // Our AE2 Fabric fork, published to mavenLocal by `./gradlew :fabric:publishToMavenLocal` in the fork:
+    //   ~/.m2/repository/org/appliedenergistics/appliedenergistics2-fabric/$ae2FabricVersion/
+    // See PORTING_NOTES.md "AE2 dependency".
+    implementation("org.appliedenergistics:appliedenergistics2-fabric:$ae2FabricVersion")
     // AE2's client classes (AEBaseScreen and friends) reference GuideME types in their signatures.
     compileOnly("org.appliedenergistics:guideme-fabric:${prop("guideme_fabric_version")}")
 
@@ -315,11 +317,11 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
         inputs.property("version", version)
-        inputs.property("ae2_version", ae2Version)
+        inputs.property("ae2_version", ae2FabricVersion)
 
         val replaceProperties = mapOf(
             "version" to version.toString(),
-            "ae2_version" to ae2Version,
+            "ae2_version" to ae2FabricVersion,
             "fabric_loader_version" to prop("fabric_loader_version"),
             "minecraft_version" to prop("minecraft_version"),
         )
