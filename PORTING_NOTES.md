@@ -1224,3 +1224,151 @@ exactly the raw-id-sensitive path §12.2 exists to cover.
 
 ⚠ `loader/fabric/run/server.properties` was restored to defaults afterwards; re-apply the §12.2 step 1 edits (plus
 `enable-rcon=true`, `rcon.port`, `rcon.password` if you want the give/inspect half) before re-running the harness.
+
+---
+
+## 14. Russian localization (landed 2026-07-30)
+
+Full RU pass over everything the player reads: the two lang files and every guidebook page.
+Pure resource addition — no Java touched, so the NeoForge harness is unaffected by design.
+
+### 14.1 What landed
+
+| File | Before | After |
+|---|---|---|
+| `src/main/resources/assets/ae2wtlib/lang/ru_ru.json` | 29/44 keys, upstream-inherited | **44/44** |
+| `ae2wtlib_api/src/main/resources/assets/ae2wtlib_api/lang/ru_ru.json` | absent | **5/5** (new file) |
+| `src/main/resources/assets/ae2wtlib/ae2guide/_ru_ru/ae2wtlib/*.md` | absent | **7 pages** |
+| `src/main/resources/assets/ae2/ae2guide/_ru_ru/items-blocks-machines/wireless_terminals.md` | absent | **1 page** |
+
+The 15 keys upstream's `ru_ru.json` never had are the ones added after its last Crowdin sync:
+`magnetcard.desc.me_no_magnet`, `current_terminal`, `terminal_empty`, the whole
+`wireless_terminal_settings_title` / `magnet_settings_title` / `pick_block.text` /
+`craft_if_missing.text` / `restock.text` / `magnet.text` / `pickup_to_me.text` settings-screen block,
+`allow` / `deny`, `key.ae2.ae2wtlib_stow`, and both `ae2wtlib.configuration.*` config labels.
+
+Four inherited strings were also corrected, not just extended:
+
+- `quantum_bridge_card.desc` — «соеденить» → «соединить» (spelling), reworded to plural terminals to match EN.
+- `key.ae2.wireless_pattern_access_terminal` / `..._encoding_terminal` — the two were **wrong**:
+  "encoding" was translated as «терминал интерфейса» (which is AE2's *old* name for the pattern **access**
+  terminal) and "access" as the generic «терминал шаблонов». Swapped onto the right items.
+- `magnet_card.desc` — «терминал крафта» → «терминал изготовления» (AE2 canon, below).
+- `gui.ae2wtlib.on`/`off` were imperative («Включить»/«Выключить») but are substituted into
+  `"Автопополнение: %s"` as *states* → «Вкл.»/«Выкл.», matching AE2's `gui.tooltips.ae2.On/Off`.
+
+### 14.2 Glossary — canon is AE2's own `ru_ru.json`
+
+Extracted from `~/IdeaProjects/Applied-Energistics-2/src/main/resources/assets/ae2/lang/ru_ru.json`
+so this mod reads as part of AE2 rather than beside it:
+
+| EN | RU (AE2 canon) | Note |
+|---|---|---|
+| Wireless Crafting Terminal | Беспроводной терминал изготовления | `item.ae2.wireless_crafting_terminal` verbatim — **not** «терминал крафта» |
+| Pattern Encoding Terminal | …для закодированных шаблонов | from `item.ae2.pattern_encoding_terminal`; overrode the inherited «терминал кодирования шаблонов» |
+| Pattern Access Terminal | …доступа к шаблонам | `item.ae2.pattern_access_terminal` |
+| Wireless Access Point | МЭ беспроводная точка доступа | `block.ae2.wireless_access_point` |
+| ME System / ME Network | МЭ-сеть | AE2 prefixes blocks «МЭ …»; hyphenated when used as a standalone noun |
+| Energy Card / Energy Cell | Энергетическая карта / энергохранилище | `item.ae2.energy_card`, `block.ae2.energy_cell` |
+| Upgrade Card | карта улучшения | `chat.ae2.MaxUpgradesOfTypeInstalled` |
+| Autocrafting | автокрафт | `gui.ae2.AutoCrafting` |
+| Charger | Зарядник | `block.ae2.charger` |
+| Quantum Entangled Singularity | Сингулярность квантовой запутанности | `item.ae2.quantum_entangled_singularity` |
+| On / Off | Вкл. / Выкл. | `gui.tooltips.ae2.On/Off` |
+
+Two judgement calls where AE2 has no canon:
+
+- `gui.ae2wtlib.allow` / `deny` → «Белый список» / «Чёрный список», not the literal «Разрешить»/«Запретить».
+  `TextConstants.getPickupMode` maps them from `IncludeExclude.WHITELIST/BLACKLIST` and they are substituted
+  into `"Фильтр подбора: %s"`, so they must read as a *mode*, not an action.
+- Restock → «Автопополнение» (one word). The inherited «Авто пополнение» is misspelled RU orthography.
+
+### 14.3 Guidebook overlay — mechanism
+
+GuideME resolves per-language pages by a `_<lang>` **first path segment inside the content root**:
+`guideme.internal.util.LangUtil.stripLangFromPageId` strips it when the segment matches a language the
+client knows, and `MutableGuide.loadAsset` retries assets under the `_<lang>/` prefix before falling back.
+Fallback is **per page**, so a partial overlay is safe. Layout therefore:
+
+```
+assets/ae2wtlib/ae2guide/ae2wtlib/magnet_card.md          <- EN original
+assets/ae2wtlib/ae2guide/_ru_ru/ae2wtlib/magnet_card.md   <- RU overlay (same relpath under the root)
+```
+
+Note AE2WTLib ships pages into **two** content roots — its own `assets/ae2wtlib/ae2guide` (7 pages) and
+`assets/ae2/ae2guide` (1 page, upstream deliberately *replaces* AE2's own `wireless_terminals.md` to point at
+the AE2WTLib section). Both need their own `_ru_ru` tree; the second also has to override whatever RU overlay
+the AE2 fork itself ships, by the same resource-pack precedence that makes the EN replacement work.
+⚠ The AE2 fork has **no** `guidebook/_ru_ru/` tree today (checked 07-30) — AE2's own guide is still EN-only,
+so RU players get an RU AE2WTLib section inside an otherwise-EN AE2 guide until that lands.
+
+Translation rules applied: prose + `navigation.title` + link *text* are translated; page ids, anchors,
+`parent`/`icon`/`position`/`categories`/`item_ids`, `<ItemLink id=…>`/`<ItemImage id=…>`/`<RecipeFor id=…>`/
+`<CategoryIndex category=…>` targets and all relative `.md` link targets are byte-identical to the English.
+There are no `<GameScene>` blocks in this mod's pages, so no annotation captions to carry over.
+
+### 14.4 Technical claims re-verified against this port's code
+
+Translating forced a read of every claim; all held:
+
+| Claim (EN page) | Verified against |
+|---|---|
+| magnet range "configurable, default 16" | `AE2wtlibConfig` — `defineDouble("magnet_card_range", 16.0)` |
+| restock off in creative | `AE2wtlibEvents.restock` — `if (player.isCreative()) return;` |
+| restock won't touch single-item stacks | same — `toAdd = getMaxStackSize() - count; if (toAdd == 0) return;` |
+| restock pushes *excess* back to the network | same — the `toAdd < 0` branch `insert`s |
+| needs an access point **or** a quantum link | same — `cTHandler.inRange()` |
+| hotbar shows network counts | `GuiMixin` (skips in creative) |
+| `ae2:wireless_terminal` can't join the WUT | no `WTDefinition` is registered for it in `AE2wtlib.registerTerminals()` |
+| curio slot "if a mod implementing the api is installed" | NeoForge = Curios; Fabric = `FabricAccessories`, which rides **AE2's own** Trinkets view and reports "no accessory inventory" when Trinkets is absent |
+
+The last row is the one place the RU text is **not** a literal translation: EN says "curio slot … curio api",
+which is false on Fabric. RU says «слот аксессуаров (если установлен мод, реализующий Curios/Trinkets API)» —
+true on both loaders, and still translation-shaped enough to survive a Crowdin round-trip.
+
+### 14.5 Upstream PR-ability
+
+Both lang files sit exactly where upstream keeps its other translations
+(`src/main/resources/assets/ae2wtlib/lang/`, `ae2wtlib_api/src/main/resources/assets/ae2wtlib_api/lang/`) and are
+plain key-for-key additions to files upstream already ships — directly PR-able / Crowdin-importable, with **no**
+Fabric-specific content in them. The guide overlay is the same shape AE2's own `crowdin.yml` produces
+(`translation_replace: "_ru/guidebook/" -> "guidebook/_ru_ru/"`), so it is PR-able too; the single caveat is the
+Curios/Trinkets wording in `wireless_terminals.md` above, which upstream (NeoForge-only) would want reverted to
+plain "Curios".
+
+### 14.6 Gates
+
+| Gate | Result |
+|---|---|
+| `json.load` on both `ru_ru.json` (stricter than gson — no lenient escapes, no trailing commas) | PASS |
+| key-set equality vs `en_us.json`, both modules | **44/44** and **5/5**, zero missing, zero extra |
+| `%s`/`%d` format-specifier parity per key | PASS |
+| guide overlay relpath set == English relpath set, both content roots | **7/7** and **1/1** |
+| frontmatter structure + every `id=`/`category=`/`](…)` target identical EN vs RU | PASS |
+| RU resources present in the built Fabric jar | 8 pages + 2 lang files |
+| `./gradlew assemble spotlessCheck -PruntimeItemlistMod=none` (NeoForge) | SUCCESS |
+| `./gradlew :loader:fabric:build` | SUCCESS |
+| `:loader:fabric:runGametest` | **44/44** |
+| `:loader:fabric:runServer` | `Done (0.109s)!`, 0 ERROR |
+
+⚠ `runServer` had to be moved to port 25599 because the owner's live server holds 25565; `server.properties`
+was restored afterwards. The task exits 137 rather than 0 because loom's `runServer` does not forward stdin,
+so `stop` never arrives and the process is killed — boot cleanliness is the actual gate, and it passed.
+
+### 14.7 Eyes-on list (not covered by headless gates)
+
+Text fits and reads right only in front of a human. With MC language set to Русский:
+
+1. WCT tooltip — item name + `magnet_card.desc`/`quantum_bridge_card.desc` lines, no clipping.
+2. Universal terminal tooltip — «Установленные терминалы:» + the installed list, and «Текущий терминал: %s».
+3. Terminal settings screen — «Настройки беспроводного терминала» title and the six checkbox labels;
+   «Всегда показывать переключатель универсального терминала» is the longest string in the mod and is the
+   most likely to overflow its widget.
+4. Magnet settings screen — «Настройки магнита», «Фильтр подбора: Белый список», «Копировать в фильтр подбора»,
+   «Поменять фильтры местами» inside the button widths.
+5. Hotkey toasts — «Автопополнение: Вкл.», «Магнитная карта: Магнит выкл., подбор в МЭ-сеть» (longest toast).
+6. Controls screen — the five `key.ae2.*` binding names.
+7. Config screen — both `ae2wtlib.configuration.*` labels.
+8. Guidebook — open AE2WTLib in the guide: the nav tree shows RU titles, all 7 pages render, `<RecipeFor>` and
+   `<ItemLink>` still resolve, and the AE2 «Беспроводные терминалы» page shows the RU AE2WTLib section.
+9. Chat errors — link a terminal with a missing singularity / no quantum bridge to see the 5 `chat.ae2wtlib.*` strings.
