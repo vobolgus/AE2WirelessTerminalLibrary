@@ -24,6 +24,7 @@
 plugins {
     id("net.fabricmc.fabric-loom")
     id("com.diffplug.spotless")
+    id("maven-publish")
 }
 
 val mavenGroup: String by project
@@ -346,5 +347,16 @@ spotless {
         toggleOffOn()
         eclipse().configFile("$rootDir/codeformat/codeformat.xml")
         importOrderFile("$rootDir/codeformat/ae2wtlib.importorder")
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "org.appliedenergistics"
+            artifactId = "ae2wtlib-fabric"
+            version = project.version.toString()
+            from(components["java"])
+        }
     }
 }
